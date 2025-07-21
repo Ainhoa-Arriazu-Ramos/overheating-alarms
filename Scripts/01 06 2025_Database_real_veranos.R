@@ -1,4 +1,4 @@
-#CREAR LA BASE DE DATOS============================AA
+#CREAR LA BASE DE DATOS==========================
 
 #Importar las bases de datos: interior("ClimateReady_10_min_interval") y exterior ("Ext_2021_2022")
 
