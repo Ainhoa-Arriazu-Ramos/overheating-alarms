@@ -43,6 +43,12 @@ Viv_cte2019 <- viv_verano_diario %>%
 
 #MODELO PREDICTIVO de ALARMA (1 o 0) ==============================================
 
+# Instalar si no lo tienes aún
+install.packages("rsample")
+# Cargar el paquete
+library(rsample)
+
+
 #1. Viv_sinnormativa---------------------------------------------------------------------
 set.seed(123)
 split <- initial_split(Viv_sinnormativa, prop = 0.7)  # 70% train, 30% test
@@ -72,6 +78,11 @@ conf_mat_1 <- table(Real = test_data_1$alarma_real, Predicho = test_data_1$alarm
   as.data.frame()
 
 # Graficar heatmap
+# Instalar si no lo tienes
+install.packages("ggplot2")
+# Cargar la librería
+library(ggplot2)
+
 ggplot(conf_mat_1, aes(x = Predicho, y = Real, fill = Freq)) +
   geom_tile(color = "black") +
   geom_text(aes(label = Freq), size = 8) +
@@ -85,6 +96,15 @@ ggplot(conf_mat_1, aes(x = Predicho, y = Real, fill = Freq)) +
         plot.title=element_text(size=18, face="bold"))
 
 
+#Exportar a excel el dataset
+# Instalar si no lo tienes
+install.packages("writexl")
+
+# Cargar librería
+library(writexl)
+
+# Exportar a Excel
+write_xlsx(test_data_1, "test_data_1.xlsx")
 
 
 

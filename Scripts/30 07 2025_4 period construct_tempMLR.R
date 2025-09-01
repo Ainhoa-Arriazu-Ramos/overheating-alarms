@@ -160,12 +160,12 @@ ggplot(test_data_4, aes(x = Int_T, y = Int_T_pred)) +
   theme_minimal()
 
 
-#CÁLCULO DE ERRORES
-
+# CÁLCULO DE ERRORES CON MAE
 calcular_errores <- function(real, pred) {
   mse <- mean((real - pred)^2, na.rm = TRUE)
   rmse <- sqrt(mse)
-  return(list(MSE = mse, RMSE = rmse))
+  mae <- mean(abs(real - pred), na.rm = TRUE)
+  return(list(MSE = mse, RMSE = rmse, MAE = mae))
 }
 
 errores_1 <- calcular_errores(test_data_1$Int_T, test_data_1$Int_T_pred)
@@ -176,6 +176,7 @@ errores_4 <- calcular_errores(test_data_4$Int_T, test_data_4$Int_T_pred)
 data.frame(
   Modelo = c("Sin normativa", "CT-79", "CTE 2006", "CTE 2019"),
   MSE = c(errores_1$MSE, errores_2$MSE, errores_3$MSE, errores_4$MSE),
-  RMSE = c(errores_1$RMSE, errores_2$RMSE, errores_3$RMSE, errores_4$RMSE)
+  RMSE = c(errores_1$RMSE, errores_2$RMSE, errores_3$RMSE, errores_4$RMSE),
+  MAE = c(errores_1$MAE, errores_2$MAE, errores_3$MAE, errores_4$MAE)
 )
 
