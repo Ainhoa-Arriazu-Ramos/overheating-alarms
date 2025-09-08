@@ -1,11 +1,39 @@
-#IMPORTAR BASE DE DATOS Vivreales_Tdiario_20212022
-viv_verano_diario <- Vivreales_Tdiario_20212022
+#Importar la base de datos: Vivtodas_diario_media.xlsx
 
-#MODELO PREDICTIVO VARIABLE ALARMA (DICOTOMICA) ==============================================
+#==========================================================================
+
+#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
+library(dplyr)
+library(lubridate)
+
+Vivtodas_diario_media <- Vivtodas_diario_media %>%
+  # Crear columna de fecha
+  mutate(fecha = make_date(year, month, day)) %>%
+  
+  group_by(dwell_numb) %>%        # agrupar por vivienda
+  arrange(dwell_numb, fecha) %>%  # ordenar por fecha
+  
+  mutate(
+    Int_T_1 = lag(Int_T, 1),   # día anterior
+    Int_T_2 = lag(Int_T, 2),   # dos días atrás
+    Int_T_3 = lag(Int_T, 3),   
+    Ext_T_1 = lag(Ext_T, 1),
+    Ext_T_2 = lag(Ext_T, 2),
+    Ext_T_3 = lag(Ext_T, 3)
+  ) %>%
+  ungroup()
+
+
+# Quitar filas con entradas NA
+Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
+
+
+
+#1. Viv_sinnormativa---------------------------------------------------------------------
 library(rsample)
 
 set.seed(123)  # Para reproducibilidad
-split <- initial_split(viv_verano_diario, prop = 0.7)  # 70% train, 30% test
+split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
 train_data <- training(split)
 test_data <- testing(split)
 
@@ -17,12 +45,6 @@ modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD +
 
 # Predecir Int_T sobre los datos test
 test_data$Int_T_pred <- predict(modelo_rlm, newdata = test_data)
-
-
-
-
-
-
 
 library(dplyr)
 library(tidyr)
