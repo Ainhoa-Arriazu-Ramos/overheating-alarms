@@ -88,10 +88,21 @@ modelo_logit <- glm(alarma_real ~ Ext_T + Ext_RAD +
 #Predecir posibilidades
 test_data_1$prob_alarma <- predict(modelo_logit, newdata = test_data_1, type = "response")
 
-#Definir distintos umbrales
-test_data_1$alarma_pred_05 <- ifelse(test_data_1$prob_alarma > 0.5, 1, 0)
-#Si quieres ser más conservador para reducir falsos negativos (FN) (es decir, dar más alarmas aunque haya más falsos positivos), se baja el umbral:
-test_data_1$alarma_pred_03 <- ifelse(test_data_1$prob_alarma > 0.3, 1, 0)
+#Convertir la probabilidad en %
+test_data_1$prob_alarma_pct <- round(test_data_1$prob_alarma * 100, 1)
+
+#Gráfico de barras
+library(ggplot2)
+ggplot(test_data_1, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
+  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
+  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
+  labs(fill = "Alarma real",
+       x = "Probabilidad predicha (%)",
+       y = "Frecuencia") +
+  theme_minimal()
+
+
 
 
 
@@ -102,21 +113,24 @@ train_data_2 <- training(split)
 test_data_2 <- testing(split)
 
 #Predecir posibilidades
-test_data_1$prob_alarma <- predict(modelo_logit, newdata = test_data_1, type = "response")
+test_data_2$prob_alarma <- predict(modelo_logit, newdata = test_data_2, type = "response")
 
 #Convertir la probabilidad en %
-test_data_1$prob_alarma_pct <- round(test_data_1$prob_alarma * 100, 1)
+test_data_2$prob_alarma_pct <- round(test_data_2$prob_alarma * 100, 1)
 
 #Visualizar
-head(test_data_1[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
+head(test_data_2[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
 
+#Gráfico de barras
 library(ggplot2)
-
-ggplot(test_data_1, aes(x = prob_alarma, fill = factor(alarma_real))) +
+ggplot(test_data_2, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
   geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
-  labs(fill = "Alarma real", x = "Probabilidad predicha", y = "Frecuencia") +
+  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
+  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
+  labs(fill = "Alarma real",
+       x = "Probabilidad predicha (%)",
+       y = "Frecuencia") +
   theme_minimal()
-
 
 
 
@@ -127,6 +141,25 @@ split <- initial_split(Viv_cte2006, prop = 0.7)  # 70% train, 30% test
 train_data_3 <- training(split)
 test_data_3 <- testing(split)
 
+#Predecir posibilidades
+test_data_3$prob_alarma <- predict(modelo_logit, newdata = test_data_3, type = "response")
+
+#Convertir la probabilidad en %
+test_data_3$prob_alarma_pct <- round(test_data_3$prob_alarma * 100, 1)
+
+#Visualizar
+head(test_data_3[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
+
+#Gráfico de barras
+library(ggplot2)
+ggplot(test_data_3, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
+  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
+  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
+  labs(fill = "Alarma real",
+       x = "Probabilidad predicha (%)",
+       y = "Frecuencia") +
+  theme_minimal()
 
 
 
@@ -137,129 +170,22 @@ train_data_4 <- training(split)
 test_data_4 <- testing(split)
 
 
-
-
-
-
-
-
-
-
-#Predicción======
-#1Dividir dataset
-set.seed(123)
-split <- initial_split(Viv_sinnormativa, prop = 0.7)  # 70% train, 30% test
-train_data_1 <- training(split)
-test_data_1 <- testing(split)
-
-
-#Modelo de regresión logística
-modelo_logit <- glm(alarma_real ~ Ext_T + Ext_RAD + 
-                      Ext_T_1 + Ext_T_2 + Ext_T_3 +
-                      Int_T_1 + Int_T_2 + Int_T_3,
-                    data = train_data_1,
-                    family = binomial)
-
 #Predecir posibilidades
-test_data_1$prob_alarma <- predict(modelo_logit, newdata = test_data_1, type = "response")
-
-#Definir distintos umbrales
-test_data_1$alarma_pred_05 <- ifelse(test_data_1$prob_alarma > 0.5, 1, 0)
-#Si quieres ser más conservador para reducir falsos negativos (FN) (es decir, dar más alarmas aunque haya más falsos positivos), se baja el umbral:
-test_data_1$alarma_pred_03 <- ifelse(test_data_1$prob_alarma > 0.3, 1, 0)
-
-
-
-
-
-
-
-
-
-
-#Evaluación resultados=======
-#Matriz de confusión
-library(caret)
-
-confusionMatrix(factor(test_data_1$alarma_pred_05),
-                factor(test_data_1$alarma_real))
-
-confusionMatrix(factor(test_data_1$alarma_pred_03),
-                factor(test_data_1$alarma_real))
-
-
-
-#Elegir el mejor umbral====
-umbrales <- seq(0.1, 0.9, 0.05) #Umbral mínimo y máximo y el intervalo
-
-res <- sapply(umbrales, function(u){
-  pred <- ifelse(test_data_1$prob_alarma > u, 1, 0)
-  cm <- table(real = test_data_1$alarma_real, pred = pred)
-  FN <- cm["1","0"] # falsos negativos
-  FP <- cm["0","1"] # falsos positivos
-  c(FN=FN, FP=FP)
-})
-
-res <- t(res)
-colnames(res) <- c("FN", "FP")
-res
-
-
-
-#2. Predicción de la probabilidad de tener alarma por sobrecalentamiento
-
-#Modelo de regresión logística
-modelo_logit <- glm(alarma_real ~ Ext_T + Ext_RAD + 
-                      Ext_T_1 + Ext_T_2 + Ext_T_3 +
-                      Int_T_1 + Int_T_2 + Int_T_3,
-                    data = train_data_1,
-                    family = binomial)
-
-#Predecir posibilidades
-test_data_1$prob_alarma <- predict(modelo_logit, newdata = test_data_1, type = "response")
+test_data_4$prob_alarma <- predict(modelo_logit, newdata = test_data_4, type = "response")
 
 #Convertir la probabilidad en %
-test_data_1$prob_alarma_pct <- round(test_data_1$prob_alarma * 100, 1)
+test_data_4$prob_alarma_pct <- round(test_data_4$prob_alarma * 100, 1)
 
 #Visualizar
-head(test_data_1[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
+head(test_data_4[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
 
+#Gráfico de barras
 library(ggplot2)
-
-ggplot(test_data_1, aes(x = prob_alarma, fill = factor(alarma_real))) +
+ggplot(test_data_4, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
   geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
-  labs(fill = "Alarma real", x = "Probabilidad predicha", y = "Frecuencia") +
+  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
+  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
+  labs(fill = "Alarma real",
+       x = "Probabilidad predicha (%)",
+       y = "Frecuencia") +
   theme_minimal()
-
-
-
-
-
-#Ver los datos que tienen probabilidad predicha baja=======
-library(dplyr)
-
-# Filtrar filas con probabilidad < 0.3 y seleccionar columnas relevantes
-casos_baja_prob <- test_data_1 %>%
-  filter(prob_alarma < 0.3) %>%
-  mutate(alarma_pred = ifelse(prob_alarma >= 0.5, 1, 0)) %>%  # predicción binaria con umbral 0.5
-  select(alarma_real, alarma_pred,
-         Int_T, Int_T_pred,
-         prob_alarma, prob_alarma_pct, limiteadap)
-
-# Mostrar todos los casos
-casos_baja_prob
-
-View(casos_baja_prob)
-
-
-
-
-
-
-
-
-
-
-
-
-
