@@ -1,10 +1,18 @@
 #Importar la base de datos: Vivtodas_diario_media.xlsx
 
+#Cargar bibliotecas
+library(dplyr)
+library(lubridate)
+install.packages("pROC")
+library(pROC)
+install.packages("rsample")
+library(rsample)
+library(ggplot2)
+
 #==========================================================================
 
 #Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
-library(dplyr)
-library(lubridate)
+
 
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
   # Crear columna de fecha
@@ -68,39 +76,94 @@ Viv_cte2019 <- Vivtodas_diario_media %>%
 
 #MODELO PREDICTIVO de ALARMA (1 o 0) ==============================================
 
-install.packages("rsample")
-library(rsample)
-
 
 #1. Viv_sinnormativa---------------------------------------------------------------------
+# ================================================
+
+
+# 1. Modelo logístico para probabilidad de alarma
 set.seed(123)
-split <- initial_split(Viv_sinnormativa, prop = 0.7)  # 70% train, 30% test
+split <- initial_split(Viv_sinnormativa, prop = 0.7)
 train_data_1 <- training(split)
 test_data_1 <- testing(split)
 
-#Modelo de RLM con los datos de entrenamiento
-modelo_logit <- glm(alarma_real ~ Ext_T + Ext_RAD + 
+modelo_logit <- glm(alarma_real ~ Ext_T + Ext_RAD +
                       Ext_T_1 + Ext_T_2 + Ext_T_3 +
                       Int_T_1 + Int_T_2 + Int_T_3,
                     data = train_data_1,
                     family = binomial)
 
-#Predecir posibilidades
-test_data_1$prob_alarma <- predict(modelo_logit, newdata = test_data_1, type = "response")
+# Predicciones de probabilidad
+test_data_1$pred_prob <- predict(modelo_logit, newdata = test_data_1, type = "response")
 
-#Convertir la probabilidad en %
-test_data_1$prob_alarma_pct <- round(test_data_1$prob_alarma * 100, 1)
+# Calcular umbral de probabilidad para 90% TPs
+threshold_prob_90 <- test_data_1 %>%
+  filter(alarma_real == 1) %>%
+  summarise(corte = quantile(pred_prob, probs = 0.1)) %>%
+  pull(corte)
 
-#Gráfico de barras
+threshold_prob_90
+
+# Graficar nube de puntos: temperatura real vs probabilidad predicha
 library(ggplot2)
-ggplot(test_data_1, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
-  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
-  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
-  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
-  labs(fill = "Alarma real",
-       x = "Probabilidad predicha (%)",
-       y = "Frecuencia") +
+ggplot(test_data_1, aes(x = Int_T, y = pred_prob)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = threshold_prob_90, color = "red", linetype = "dashed", size = 1) +
+  labs(x = "Temperatura real (°C)",
+       y = "Probabilidad predicha de alarma",
+       title = "Probabilidad de alarma vs Temperatura real (90% TPs)") +
   theme_minimal()
+
+#=============================================
+# 2. Modelo lineal para temperatura predicha
+modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD +
+                   Ext_T_1 + Ext_T_2 + Ext_T_3 +
+                   Int_T_1 + Int_T_2 + Int_T_3,
+                 data = train_data_1)
+
+# Predicciones de temperatura
+test_data_1$pred_temp <- predict(modelo_rlm, newdata = test_data_1)
+
+# Umbral de temperatura predicha para 90% TPs
+threshold_temp_90 <- test_data_1 %>%
+  filter(alarma_real == 1) %>%
+  summarise(corte = quantile(pred_temp, probs = 0.1)) %>%
+  pull(corte)
+
+threshold_temp_90
+
+# Graficar nube de puntos: real vs predicha
+ggplot(test_data_1, aes(x = Int_T, y = pred_temp)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
+  geom_hline(yintercept = threshold_temp_90, color = "red", linetype = "dashed", size = 1) +
+  labs(x = "Temperatura real (°C)",
+       y = "Temperatura predicha (°C)",
+       title = "Temperatura real vs predicha (90% TPs)") +
+  theme_minimal()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -115,22 +178,6 @@ test_data_2 <- testing(split)
 #Predecir posibilidades
 test_data_2$prob_alarma <- predict(modelo_logit, newdata = test_data_2, type = "response")
 
-#Convertir la probabilidad en %
-test_data_2$prob_alarma_pct <- round(test_data_2$prob_alarma * 100, 1)
-
-#Visualizar
-head(test_data_2[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
-
-#Gráfico de barras
-library(ggplot2)
-ggplot(test_data_2, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
-  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
-  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
-  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
-  labs(fill = "Alarma real",
-       x = "Probabilidad predicha (%)",
-       y = "Frecuencia") +
-  theme_minimal()
 
 
 
@@ -144,22 +191,7 @@ test_data_3 <- testing(split)
 #Predecir posibilidades
 test_data_3$prob_alarma <- predict(modelo_logit, newdata = test_data_3, type = "response")
 
-#Convertir la probabilidad en %
-test_data_3$prob_alarma_pct <- round(test_data_3$prob_alarma * 100, 1)
 
-#Visualizar
-head(test_data_3[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
-
-#Gráfico de barras
-library(ggplot2)
-ggplot(test_data_3, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
-  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
-  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
-  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
-  labs(fill = "Alarma real",
-       x = "Probabilidad predicha (%)",
-       y = "Frecuencia") +
-  theme_minimal()
 
 
 
@@ -173,19 +205,4 @@ test_data_4 <- testing(split)
 #Predecir posibilidades
 test_data_4$prob_alarma <- predict(modelo_logit, newdata = test_data_4, type = "response")
 
-#Convertir la probabilidad en %
-test_data_4$prob_alarma_pct <- round(test_data_4$prob_alarma * 100, 1)
 
-#Visualizar
-head(test_data_4[, c("alarma_real", "prob_alarma", "prob_alarma_pct")])
-
-#Gráfico de barras
-library(ggplot2)
-ggplot(test_data_4, aes(x = prob_alarma_pct, fill = factor(alarma_real))) +
-  geom_histogram(position = "identity", alpha = 0.5, bins = 20) +
-  scale_x_continuous(breaks = seq(0, 100, by = 10), limits = c(0, 100)) +  # eje x de 0 a 100 con intervalo 10
-  scale_y_continuous(breaks = seq(0, 20, by = 5), limits = c(0, 20)) +    # eje y de 0 a 20 con intervalo 5
-  labs(fill = "Alarma real",
-       x = "Probabilidad predicha (%)",
-       y = "Frecuencia") +
-  theme_minimal()
