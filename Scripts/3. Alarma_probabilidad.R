@@ -8,6 +8,7 @@ library(pROC)
 install.packages("rsample")
 library(rsample)
 library(ggplot2)
+library(caret)   # para confusionMatrix
 
 #==========================================================================
 
@@ -82,7 +83,12 @@ test_data$prob_alarma <- predict(modelo_logit, newdata = test_data, type = "resp
 #Crear columna con probabilidad en porcentaje
 test_data$prob_alarma_pct <- round(test_data$prob_alarma * 100, 1)  # redondea a 1 decimal
 
-
+#Categorizar la probabilidad de alarma
+test_data <- test_data %>%
+  mutate(prob_alarma_cat = cut(prob_alarma_pct,
+                               breaks = seq(0, 100, 20),
+                               include.lowest = TRUE,
+                               labels = c("0–20%", "21–40%", "41–60%", "61–80%", "81–100%")))
 
 
 
@@ -138,47 +144,18 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred, fill = prob_alarma_cat)) +
        y = "Temperatura interior predicha (ºC)") +
   theme_minimal(base_size = 14)
 
-#Tabla de contingencia usando este umbral de temperatura predicha para ver cuántos TP, FP, TN y FN hay usando esta regla
-
-#Crear columna de predicción de alarma según el umbral de temperatura predicha
-test_data <- test_data %>%
-  mutate(alarma_pred_temp90 = ifelse(Int_T_pred >= temp_pred_umbral90, 1, 0))
-
-#Crear tabla de contingencia 2x2
-conf_mat_temp90 <- table(
-  Real = test_data$alarma_real,
-  Predicho = test_data$alarma_pred_temp90
-)
-
-conf_mat_temp90
-
-# Convertir la tabla de contingencia a data.frame para ggplot
-conf_mat_temp90_df <- as.data.frame(conf_mat_temp90)
-
-# Heatmap
-ggplot(conf_mat_temp90_df, aes(x = Predicho, y = Real, fill = Freq)) +
-  geom_tile(color = "black") +
-  geom_text(aes(label = Freq), size = 6) +  # tamaño del texto dentro de las celdas
-  scale_fill_gradient(low = "white", high = "steelblue") +
-  labs(title = "Tabla de contingencia - umbral 90% alarmas reales",
-       x = "Alarma Predicha",
-       y = "Alarma Real") +
-  theme_minimal() +
-  theme(axis.text=element_text(size=14),
-        axis.title=element_text(size=16),
-        plot.title=element_text(size=18, face="bold"))
 
 
-
-#sociar el umbral de temperatura predicha (temp_pred_umbral90) con la probabilidad de alarma predicha (prob_alarma), para determinar a partir de qué % conviene activar la alarma.
+#Asociar el umbral de temperatura predicha (temp_pred_umbral90) con la probabilidad de alarma predicha (prob_alarma), para determinar a partir de qué % conviene activar la alarma.
 
 #Filtrar las observaciones que están por encima del umbral de temperatura predicha
-# Observaciones con temperatura predicha >= temp_pred_umbral90
 obs_umbral <- test_data %>% 
   filter(Int_T_pred >= temp_pred_umbral90) %>%
   select(Int_T_pred, alarma_real, prob_alarma, prob_alarma_pct)
 #Revisar las probabilidades de alarma correspondientes
 summary(obs_umbral$prob_alarma_pct)
+
+
 
 #Gráfico COMBINANDO TODO============
 # Umbral de probabilidad (percentil 10 de las observaciones por encima del umbral de temp)
@@ -222,7 +199,40 @@ ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_ca
   theme_minimal(base_size = 14)
 
 
+#TABLA DE CONTINGENCIA
 
+# Umbrales
+umbral_temp <- 25.12
+umbral_prob <- 0.45   # recuerda que aquí es en proporción (45% = 0.45)
+
+# Crear columna de alarma predicha con Método 2
+test_data <- test_data %>%
+  mutate(
+    alarma_pred_m2 = ifelse(Int_T_pred >= umbral_temp & prob_alarma >= umbral_prob, 1, 0)
+  )
+
+# Tabla de confusión
+conf_m2 <- table(Predicho = test_data$alarma_pred_m2,
+                 Real = test_data$alarma_real)
+
+print(conf_m2)
+
+# Convertir tabla en data.frame
+conf_m2_df <- as.data.frame(conf_m2)
+colnames(conf_m2_df) <- c("Predicho", "Real", "Freq")
+
+# Gráfico matriz de confusión
+ggplot(conf_m2_df, aes(x = Predicho, y = Real, fill = Freq)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = Freq), size = 8) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  labs(title = "Todas viviendas",
+       x = "Alarma Predicha",
+       y = "Alarma Real") +
+  theme_minimal() +
+  theme(axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 18, face = "bold"))
 
 
 
