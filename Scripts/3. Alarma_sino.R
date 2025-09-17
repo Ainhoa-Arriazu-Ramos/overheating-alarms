@@ -48,8 +48,56 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 
 
 #====================================================================================================
+#Todas las viviendas
+
+set.seed(123)
+split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
+train_data <- training(split)
+test_data <- testing(split)
+
+#Modelo de RLM con los datos de entrenamiento
+modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
+                     Ext_T_1 + Ext_T_2 + Ext_T_3 
+                   + Int_T_1 + Int_T_2 + Int_T_3, 
+                   data = train_data)
+
+# Predecir Int_T sobre los datos test
+test_data$Int_T_pred <- predict(modelo_rlm, newdata = test_data)
+
+#Calcular alarma usando la fórmula, pero con las variables de test:
+test_data$alarma_test <- ifelse(test_data$trm > 30 | test_data$Int_T_pred > test_data$limiteadap, 1, 0)
+
+#Residuos
+test_data$residuos_alarma <- test_data$alarma_real - test_data$alarma_test
+
+# Tabla de contingencia para variable dicotomica (Alarma)
+table(test_data$alarma_real, test_data$alarma_test)
+
+# Crear tabla de contingencia
+conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_test) %>% 
+  as.data.frame()
+
+# Graficar heatmap
+# Instalar si no lo tienes
+install.packages("ggplot2")
+# Cargar la librería
+library(ggplot2)
+
+ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = Freq), size = 8) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  labs(title = "Todas viviendas",
+       x = "Alarma Predicha",
+       y = "Alarma Real") +
+  theme_minimal() +
+  theme(axis.text=element_text(size=14),
+        axis.title=element_text(size=16),
+        plot.title=element_text(size=18, face="bold"))
 
 
+
+#====================================================================================================
 #Dividir base segun periodos constructivos->Cuatro bases de datos distintas
 
 Viv_sinnormativa <- Vivtodas_diario_media %>%

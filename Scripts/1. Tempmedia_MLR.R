@@ -28,6 +28,40 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
 
 
+
+#==========================================================================
+#Con todas las viviendas juntas
+set.seed(123)
+split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
+train_data <- training(split)
+test_data <- testing(split)
+
+#Modelo de RLM con los datos de entrenamiento
+modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
+                     Ext_T_1 + Ext_T_2 + Ext_T_3 
+                   + Int_T_1 + Int_T_2 + Int_T_3, 
+                   data = train_data)
+
+summary(modelo_rlm)
+
+
+# Predecir Int_T sobre los datos test
+test_data$Int_T_pred <- predict(modelo_rlm, newdata = test_data)
+
+#Gráfico de dispersion para variable Int_T
+ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
+  geom_point(alpha = 0.6, color = "darkblue") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(method = "lm", se = FALSE, color = "green", linetype = "solid") +
+  labs(title = "Todas viviendas: Temperatura Interior Real vs Predicha",
+       x = "Temperatura Interior Real (°C)",
+       y = "Temperatura Interior Predicha (°C)") +
+  xlim(20, 30) +
+  ylim(20, 30) +
+  coord_fixed(ratio = 1) +
+  theme_minimal()
+
+
 #==========================================================================
 
 
