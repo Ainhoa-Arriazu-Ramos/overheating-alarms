@@ -56,50 +56,47 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
   )
 
 #MÉTODO 2: PROBABILIDAD DE ALARMA====================================================================================================
+# ===================================================================
+# MODELO RLM: predecir temperatura interior
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
 train_data <- training(split)
 test_data <- testing(split)
 
-# Paso 1: Modelo RLM para predecir temperatura interior
 modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
                    Ext_T_1 + Ext_T_2 + Ext_T_3 
                  + Int_T_1 + Int_T_2 + Int_T_3, 
                  data = train_data)
 
-# Predecir temperatura interior en train y test
 train_data$Int_T_pred <- predict(modelo_rlm, newdata = train_data)
 test_data$Int_T_pred  <- predict(modelo_rlm, newdata = test_data)
 
-#Ajustar modelo logístico que prediga alarma en función de la temperatura predicha y el límite adaptativo
+# ===================================================================
+# MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap
 modelo_logit <- glm(alarma_real ~ Int_T_pred + limiteadap, 
                     data = train_data, family = binomial)
 
 summary(modelo_logit)
 
-#Predecir probabilidad de alarma en test
+# Predecir probabilidad de alarma en test
 test_data$prob_alarma <- predict(modelo_logit, newdata = test_data, type = "response")
 
-#Crear columna con probabilidad en porcentaje
 test_data$prob_alarma_pct <- round(test_data$prob_alarma * 100, 1)  # redondea a 1 decimal
 
-#Categorizar la probabilidad de alarma
+# Categorizar probabilidad de alarma cada 20%
 test_data <- test_data %>%
   mutate(prob_alarma_cat = cut(prob_alarma_pct,
                                breaks = seq(0, 100, 20),
                                include.lowest = TRUE,
-                               labels = c("0–20%", "21–40%", "41–60%", "61–80%", "81–100%")))
+                               labels = c("0–20%", "21–40%", "41–60%", "61–80%", "81–100%")),
+         borde = ifelse(alarma_real == 1, 1.5, 0))
 
 
 
 
 
-#Gráfico: alarmas y probabilidad de tenerlas =======================================
-
-# Crear columna de borde
-test_data$borde <- ifelse(test_data$alarma_real == 1, 1.5, 0)
-
-# Gráfico
+# ===================================================================
+# GRÁFICO: temperatura real vs predicha
 ggplot(test_data, aes(x = Int_T, y = Int_T_pred, fill = prob_alarma_cat)) +
   geom_point(aes(stroke = borde), size = 2.5, shape = 21, color = "black", alpha = 0.8) +
   scale_fill_brewer(palette = "YlOrRd", name = "Probabilidad de alarma") +
@@ -110,18 +107,12 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred, fill = prob_alarma_cat)) +
   theme_minimal(base_size = 14)
 
 
-
-
-
-#A partir de qué temperatura predicha hay un 90% de alarmas reales?============
-
-# Filtrar solo las observaciones con alarma real
+# ===================================================================
+# CALCULAR UMBRALES OPTIMOS (percentil 10 de alarmas reales)
 alarmas_real <- test_data %>% filter(alarma_real == 1)
 
-# Calcular la temperatura predicha que deja el 90% de alarmas reales por encima
-# Es decir, el percentil 10 de Int_T_pred en alarmas reales
+# Umbral temperatura predicha
 temp_pred_umbral90 <- quantile(alarmas_real$Int_T_pred, probs = 0.1)
-
 temp_pred_umbral90
 
 #Añadir linea horizontal al gráfico
@@ -144,16 +135,9 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred, fill = prob_alarma_cat)) +
        y = "Temperatura interior predicha (ºC)") +
   theme_minimal(base_size = 14)
 
-
-
-#Asociar el umbral de temperatura predicha (temp_pred_umbral90) con la probabilidad de alarma predicha (prob_alarma), para determinar a partir de qué % conviene activar la alarma.
-
-#Filtrar las observaciones que están por encima del umbral de temperatura predicha
-obs_umbral <- test_data %>% 
-  filter(Int_T_pred >= temp_pred_umbral90) %>%
-  select(Int_T_pred, alarma_real, prob_alarma, prob_alarma_pct)
-#Revisar las probabilidades de alarma correspondientes
-summary(obs_umbral$prob_alarma_pct)
+# Umbral probabilidad de alarma
+prob_umbral90 <- quantile(alarmas_real$prob_alarma, probs = 0.1)
+prob_umbral90
 
 
 
@@ -181,12 +165,12 @@ ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_ca
            size = 3,
            hjust = 1) +
   
-  # Línea vertical: umbral probabilidad
-  geom_vline(xintercept = prob_umbral90, color = "blue", linetype = "dashed", size = 1.2) +
+  # Línea vertical: umbral probabilidad (convertido a porcentaje)
+  geom_vline(xintercept = prob_umbral90 * 100, color = "blue", linetype = "dashed", size = 1.2) +
   annotate("text",
-           x = prob_umbral90 + 1,
+           x = prob_umbral90 * 100 + 1,
            y = min(test_data$Int_T_pred) + 0.3,
-           label = paste0("Prob_alarma = ", round(prob_umbral90,1), " %"),
+           label = paste0("Prob_alarma = ", round(prob_umbral90*100,1), " %"),
            color = "blue",
            size = 3,
            angle = 90,
@@ -201,27 +185,22 @@ ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_ca
 
 #TABLA DE CONTINGENCIA
 
-# Umbrales
-umbral_temp <- 25.12
-umbral_prob <- 0.45   # recuerda que aquí es en proporción (45% = 0.45)
-
-# Crear columna de alarma predicha con Método 2
+# CREAR COLUMNA DE ALARMA PREDICHA CON UMBRALES OPTIMOS
 test_data <- test_data %>%
   mutate(
-    alarma_pred_m2 = ifelse(Int_T_pred >= umbral_temp & prob_alarma >= umbral_prob, 1, 0)
+    alarma_pred_m2 = ifelse(Int_T_pred >= temp_pred_umbral90 | prob_alarma >= prob_umbral90, 1, 0)
   )
 
-# Tabla de confusión
+# TABLA DE CONFUSIÓN
 conf_m2 <- table(Predicho = test_data$alarma_pred_m2,
                  Real = test_data$alarma_real)
-
 print(conf_m2)
 
-# Convertir tabla en data.frame
+# CONVERTIR A DATAFRAME PARA GRAFICO
 conf_m2_df <- as.data.frame(conf_m2)
 colnames(conf_m2_df) <- c("Predicho", "Real", "Freq")
 
-# Gráfico matriz de confusión
+# GRÁFICO MATRIZ DE CONFUSIÓN
 ggplot(conf_m2_df, aes(x = Predicho, y = Real, fill = Freq)) +
   geom_tile(color = "black") +
   geom_text(aes(label = Freq), size = 8) +
