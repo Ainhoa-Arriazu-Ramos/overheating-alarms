@@ -66,6 +66,25 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #Dividir base segun periodos constructivos->Cuatro bases de datos distintas
 library(dplyr)
 

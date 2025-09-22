@@ -55,8 +55,15 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
     alarma_real = if_else(trm > 30 | Int_T > limiteadap, 1, 0)
   )
 
+
+
+
+
+
+
+
 #MÉTODO 2: PROBABILIDAD DE ALARMA====================================================================================================
-# ===================================================================
+
 # MODELO RLM: predecir temperatura interior
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
@@ -68,10 +75,20 @@ modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD +
                  + Int_T_1 + Int_T_2 + Int_T_3, 
                  data = train_data)
 
+# Predecir temperatura interior en test
+test_data <- test_data %>%
+  mutate(
+    Int_T_pred = predict(modelo_rlm, newdata = test_data),
+    # Aquí queda tu variable alarma_test
+    alarma_test = ifelse(trm > 30 | Int_T_pred > limiteadap, 1, 0),
+    residuos_alarma = alarma_real - alarma_test
+  )
+
+
 train_data$Int_T_pred <- predict(modelo_rlm, newdata = train_data)
 test_data$Int_T_pred  <- predict(modelo_rlm, newdata = test_data)
 
-# ===================================================================
+
 # MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap
 modelo_logit <- glm(alarma_real ~ Int_T_pred + limiteadap, 
                     data = train_data, family = binomial)
@@ -155,9 +172,9 @@ test_data <- test_data %>%
 ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_cat)) +
   geom_point(aes(stroke = borde), size = 3, shape = 21, color = "black", alpha = 0.8) +
   
-  # Línea horizontal: umbral temperatura predicha
-  geom_hline(yintercept = temp_pred_umbral90, color = "red", linetype = "dashed", size = 1.2) +
-  annotate("text",
+# Línea horizontal: umbral temperatura predicha
+geom_hline(yintercept = temp_pred_umbral90, color = "red", linetype = "dashed", size = 1.2) +
+annotate("text",
            x = max(test_data$prob_alarma_pct) * 0.95,
            y = temp_pred_umbral90 + 0.3,
            label = paste0("Temp_pred = ", round(temp_pred_umbral90,2), " ºC"),
@@ -165,9 +182,9 @@ ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_ca
            size = 3,
            hjust = 1) +
   
-  # Línea vertical: umbral probabilidad (convertido a porcentaje)
-  geom_vline(xintercept = prob_umbral90 * 100, color = "blue", linetype = "dashed", size = 1.2) +
-  annotate("text",
+# Línea vertical: umbral probabilidad (convertido a porcentaje)
+geom_vline(xintercept = prob_umbral90 * 100, color = "blue", linetype = "dashed", size = 1.2) +
+annotate("text",
            x = prob_umbral90 * 100 + 1,
            y = min(test_data$Int_T_pred) + 0.3,
            label = paste0("Prob_alarma = ", round(prob_umbral90*100,1), " %"),
@@ -183,9 +200,9 @@ ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_ca
   theme_minimal(base_size = 14)
 
 
-#TABLA DE CONTINGENCIA
+#TABLA DE CONTINGENCIA===============
 
-# CREAR COLUMNA DE ALARMA PREDICHA CON UMBRALES OPTIMOS
+# CREAR COLUMNA DE ALARMA PREDICHA CON UMBRALES OPTIMOS (Alarma si se supera el Umbral de temp O el Umbral %)
 test_data <- test_data %>%
   mutate(
     alarma_pred_m2 = ifelse(Int_T_pred >= temp_pred_umbral90 | prob_alarma >= prob_umbral90, 1, 0)
@@ -212,68 +229,3 @@ ggplot(conf_m2_df, aes(x = Predicho, y = Real, fill = Freq)) +
   theme(axis.text = element_text(size = 14),
         axis.title = element_text(size = 16),
         plot.title = element_text(size = 18, face = "bold"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#EVALUACIÓN==========================================================================================
-#Evaluar qué tan bien tu modelo probabilístico detecta las alarmas reales, y cómo la probabilidad predicha se traduce en aciertos o fallos.
-
-#ROC
-library(pROC)
-#Crear objeto ROC
-roc_obj <- roc(test_data$alarma_real, test_data$prob_alarma)
-# Gráfico
-plot(roc_obj, col = "blue", main = "Curva ROC - Probabilidad de alarma")
-auc(roc_obj)
-# Encontrar el umbral óptimo usando el índice de Youden
-umbral_optimo <- coords(roc_obj, x = "best", best.method = "youden", ret = c("threshold","sensitivity","specificity"))
-umbral_optimo
-umbral_val <- as.numeric(umbral_optimo["threshold"])
-umbral_val
-
-#Asociar al valor de temperatura predicha
-# Filtrar observaciones con probabilidad mayor o igual al umbral
-test_data %>%
-  filter(prob_alarma >= umbral_val) %>%
-  select(Int_T_pred, Int_T, alarma_real, prob_alarma)
-
-
-
-#Crear la predicción de alarma según el umbral óptimo
-# Crear columna con predicción de alarma según umbral
-test_data <- test_data %>%
-  mutate(alarma_pred_opt = ifelse(prob_alarma >= umbral_val, 1, 0))
-
-
-# Tabla de contingencia
-conf_mat <- table(
-  Real = test_data$alarma_real,
-  Predicho = test_data$alarma_pred_opt
-)
-
-conf_mat

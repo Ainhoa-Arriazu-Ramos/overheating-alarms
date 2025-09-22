@@ -5,6 +5,7 @@
 #Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 library(dplyr)
 library(lubridate)
+library(rsample)
 
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
   # Crear columna de fecha
@@ -61,14 +62,14 @@ modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD +
                    + Int_T_1 + Int_T_2 + Int_T_3, 
                    data = train_data)
 
-# Predecir Int_T sobre los datos test
-test_data$Int_T_pred <- predict(modelo_rlm, newdata = test_data)
-
-#Calcular alarma usando la fórmula, pero con las variables de test:
-test_data$alarma_test <- ifelse(test_data$trm > 30 | test_data$Int_T_pred > test_data$limiteadap, 1, 0)
-
-#Residuos
-test_data$residuos_alarma <- test_data$alarma_real - test_data$alarma_test
+# Predecir temperatura interior en test
+test_data <- test_data %>%
+  mutate(
+    Int_T_pred = predict(modelo_rlm, newdata = test_data),
+    # Aquí queda tu variable alarma_test
+    alarma_test = ifelse(trm > 30 | Int_T_pred > limiteadap, 1, 0),
+    residuos_alarma = alarma_real - alarma_test
+  )
 
 # Tabla de contingencia para variable dicotomica (Alarma)
 table(test_data$alarma_real, test_data$alarma_test)
@@ -94,6 +95,27 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
   theme(axis.text=element_text(size=14),
         axis.title=element_text(size=16),
         plot.title=element_text(size=18, face="bold"))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
