@@ -2,11 +2,13 @@
 
 #==========================================================================
 
-#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
+#Cargar librerías
 library(dplyr)
 library(lubridate)
 library(rsample)
+library(ggplot2)
 
+#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
   # Crear columna de fecha
   mutate(fecha = make_date(year, month, day)) %>%
@@ -47,9 +49,12 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
     alarma_real = if_else(trm > 30 | Int_T > limiteadap, 1, 0)
   )
 
+#====================================================================================================
+#MÉTODO 1: ALARMA SI/NO
+#====================================================================================================
 
-#MÉTODO 1: ALARMA SI/NO====================================================================================================
-#Todas las viviendas
+
+#ANALISIS CON TODAS LAS VIVIENDAS JUNTAS==========================================================================
 
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
@@ -61,6 +66,7 @@ modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD +
                      Ext_T_1 + Ext_T_2 + Ext_T_3 
                    + Int_T_1 + Int_T_2 + Int_T_3, 
                    data = train_data)
+summary(modelo_rlm)
 
 # Predecir temperatura interior en test
 test_data <- test_data %>%
@@ -79,11 +85,6 @@ conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_test
   as.data.frame()
 
 # Graficar heatmap
-# Instalar si no lo tienes
-install.packages("ggplot2")
-# Cargar la librería
-library(ggplot2)
-
 ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
   geom_tile(color = "black") +
   geom_text(aes(label = Freq), size = 8) +
@@ -119,8 +120,7 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
 
 
 
-#====================================================================================================
-#Dividir base segun periodos constructivos->Cuatro bases de datos distintas
+#ANALISIS POR PERIODO CONSTRUCTIVO================================================================================================================
 
 Viv_sinnormativa <- Vivtodas_diario_media %>%
   filter(dwell_numb %in% c(1, 2, 3, 4))

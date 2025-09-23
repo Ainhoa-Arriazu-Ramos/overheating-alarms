@@ -2,10 +2,13 @@
 
 #==========================================================================
 
-#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
+#Cargar librerías
 library(dplyr)
 library(lubridate)
+library(rsample)
+library(ggplot2)
 
+#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
   # Crear columna de fecha
   mutate(fecha = make_date(year, month, day)) %>%
@@ -29,8 +32,7 @@ Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
 
 
 
-#==========================================================================
-#Con todas las viviendas juntas
+#ANALISIS CON TODAS LAS VIVIENDAS JUNTAS==========================================================================
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
 train_data <- training(split)
@@ -56,13 +58,28 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
   labs(title = "Todas viviendas: Temperatura Interior Real vs Predicha",
        x = "Temperatura Interior Real (°C)",
        y = "Temperatura Interior Predicha (°C)") +
-  xlim(20, 30) +
-  ylim(20, 30) +
+  xlim(20, 32) +
+  ylim(20, 32) +
   coord_fixed(ratio = 1) +
   theme_minimal()
 
 
-#==========================================================================
+# Cálculo de errores
+calcular_errores <- function(real, pred) {
+  mse <- mean((real - pred)^2, na.rm = TRUE)
+  rmse <- sqrt(mse)
+  mae <- mean(abs(real - pred), na.rm = TRUE)
+  return(list(MSE = mse, RMSE = rmse, MAE = mae))
+}
+
+errores <- calcular_errores(test_data$Int_T, test_data$Int_T_pred)
+
+data.frame(
+  Modelo = c("Todas las viviendas"),
+  MSE = c(errores$MSE),
+  RMSE = c(errores$RMSE),
+  MAE = c(errores$MAE)
+)
 
 
 
@@ -81,12 +98,9 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
 
 
 
-
-
-
+#ANALISIS POR PERIODO CONSTRUCTIVO================================================================================================================
 
 #Dividir base segun periodos constructivos->Cuatro bases de datos distintas
-library(dplyr)
 
 Viv_sinnormativa_diamed <- Vivtodas_diario_media %>%
   filter(dwell_numb %in% c(1, 2, 3, 4))
@@ -103,11 +117,6 @@ Viv_cte2019_diamed <- Vivtodas_diario_media %>%
 
 #====================================================================================================
 
-
-#MODELO PREDICTIVO de TEMPERATURA INTERIOR MEDIA (VARIABLE CONTINUA) 
-install.packages("rsample")
-library(rsample)
-library(ggplot2)
 
 
 #1. Viv_sinnormativa_diamed---------------------------------------------------------------------

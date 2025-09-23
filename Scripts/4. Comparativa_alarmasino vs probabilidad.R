@@ -1,6 +1,8 @@
 # ======================================================
 # COMPARACIÓN MÉTODO 1 vs MÉTODO 2
 # ======================================================
+
+#Cargar bibliotecas
 library(caret)
 library(pROC)
 library(dplyr)
@@ -14,14 +16,14 @@ library(ggplot2)
   #Para ello, hay que haber corrido el script "3. Alarma_probabilidad". 
 
 
-# -------------------------
-# FUNCION PARA MÉTRICAS
-# -------------------------
+
+# FUNCION PARA MÉTRICAS ============================================================================
+
 get_metrics <- function(real, pred, prob = NULL, metodo = "M1") {
   
   cm <- confusionMatrix(
-    factor(pred, levels = c(0,1)),
     factor(real, levels = c(0,1)),
+    factor(pred, levels = c(0,1)),
     positive = "1"
   )
   
@@ -47,9 +49,7 @@ get_metrics <- function(real, pred, prob = NULL, metodo = "M1") {
   return(out)
 }
 
-# -------------------------
-# CALCULAR MÉTRICAS
-# -------------------------
+# CALCULAR MÉTRICAS ============================================================
 
 # Método 1
 res_m1 <- get_metrics(test_data$alarma_real,
@@ -62,15 +62,12 @@ res_m2 <- get_metrics(test_data$alarma_real,
                       prob = test_data$prob_alarma,
                       metodo = "M2")
 
-# -------------------------
-# TABLA RESUMEN
-# -------------------------
+
 resumen <- bind_rows(res_m1, res_m2)
 print(resumen)
 
-# ======================================================
-# GRÁFICO ROC (Método 2) + Punto Método 1
-# ======================================================
+
+# GRÁFICO ROC (Método 2) + Punto Método 1 =================================================
 
 roc_obj <- roc(test_data$alarma_real, test_data$prob_alarma)
 plot(roc_obj, col = "blue", lwd = 2, main = "ROC - Método 2 (logístico)")
@@ -84,9 +81,8 @@ legend("bottomright", legend=c("Método 2 ROC", "Método 1 (punto)"),
        col=c("blue","red"), lty=c(1,NA), pch=c(NA,19))
 
 
-# ======================================================
-# BARPLOT COMPARATIVO DE MÉTRICAS
-# ======================================================
+
+# BARPLOT COMPARATIVO DE MÉTRICAS ======================================================================
 
 # Seleccionar solo métricas relevantes
 resumen_plot <- resumen %>%
