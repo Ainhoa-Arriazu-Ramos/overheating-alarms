@@ -17,12 +17,25 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
   arrange(dwell_numb, fecha) %>%  # ordenar por fecha
   
   mutate(
-    Int_T_1 = lag(Int_T, 1),   # día anterior
-    Int_T_2 = lag(Int_T, 2),   # dos días atrás
-    Int_T_3 = lag(Int_T, 3),   
+    Int_T_1 = lag(Int_T, 1),
+    Int_T_2 = lag(Int_T, 2),
+    Int_T_3 = lag(Int_T, 3),
+    Int_T_4 = lag(Int_T, 4),
+    Int_T_5 = lag(Int_T, 5),
+    Int_T_6 = lag(Int_T, 6),
+    Int_T_7 = lag(Int_T, 7),
+    Int_T_8 = lag(Int_T, 8),
+    Int_T_9 = lag(Int_T, 9),
+    
     Ext_T_1 = lag(Ext_T, 1),
     Ext_T_2 = lag(Ext_T, 2),
-    Ext_T_3 = lag(Ext_T, 3)
+    Ext_T_3 = lag(Ext_T, 3),
+    Ext_T_4 = lag(Ext_T, 4),
+    Ext_T_5 = lag(Ext_T, 5),
+    Ext_T_6 = lag(Ext_T, 6),
+    Ext_T_7 = lag(Ext_T, 7),
+    Ext_T_8 = lag(Ext_T, 8),
+    Ext_T_9 = lag(Ext_T, 9)
   ) %>%
   ungroup()
 
@@ -40,8 +53,8 @@ test_data <- testing(split)
 
 #Modelo de RLM con los datos de entrenamiento
 modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
-                     Ext_T_1 + Ext_T_2 + Ext_T_3 
-                   + Int_T_1 + Int_T_2 + Int_T_3, 
+                     Ext_T_1 + Ext_T_2 + Ext_T_3 + Ext_T_4 + Ext_T_5 + Ext_T_6 + Ext_T_7 + Ext_T_8 + Ext_T_9
+                   + Int_T_1 + Int_T_2 + Int_T_3 + Int_T_4 + Int_T_5 + Int_T_6 + Int_T_7 + Int_T_8 + Int_T_9, 
                    data = train_data)
 
 summary(modelo_rlm)
