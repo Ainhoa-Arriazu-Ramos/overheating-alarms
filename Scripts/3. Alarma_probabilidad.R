@@ -159,7 +159,7 @@ prob_umbral90
 
 # Gráfico combinado
 ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_cat)) +
-  geom_point(aes(stroke = borde), size = 3, shape = 21, color = "black", alpha = 0.8) +
+  geom_point(aes(stroke = borde), size = 2, shape = 21, color = "black", alpha = 5) +
   
 # Línea horizontal: umbral temperatura predicha
 geom_hline(yintercept = temp_pred_umbral90, color = "red", linetype = "dashed", size = 1.2) +
@@ -168,7 +168,7 @@ annotate("text",
            y = temp_pred_umbral90 + 0.3,
            label = paste0("Temp_pred = ", round(temp_pred_umbral90,2), " ºC"),
            color = "red",
-           size = 3,
+           size = 4,
            hjust = 1) +
   
 # Línea vertical: umbral probabilidad (convertido a porcentaje)
@@ -178,14 +178,14 @@ annotate("text",
            y = min(test_data$Int_T_pred) + 0.3,
            label = paste0("Prob_alarma = ", round(prob_umbral90*100,1), " %"),
            color = "blue",
-           size = 3,
+           size = 4,
            angle = 90,
            vjust = -0.5) +
   
-  scale_fill_brewer(palette = "YlOrRd", name = "Probabilidad de alarma") +
+  scale_fill_brewer(palette = "YlOrRd", name = "Range of probability") +
   labs(title = "Temperatura predicha vs Probabilidad de alarma",
-       x = "Probabilidad de alarma (%)",
-       y = "Temperatura predicha (ºC)") +
+       x = "Alarm Probability (%)",
+       y = "Predicted Temperature (ºC)") +
   theme_minimal(base_size = 14)
 
 

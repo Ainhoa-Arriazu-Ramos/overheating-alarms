@@ -104,8 +104,8 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
   geom_text(aes(label = Freq), size = 8) +
   scale_fill_gradient(low = "white", high = "steelblue") +
   labs(title = "Todas viviendas",
-       x = "Alarma Predicha",
-       y = "Alarma Real") +
+       x = "Predicted Alarm",
+       y = "Real Alarm") +
   theme_minimal() +
   theme(axis.text=element_text(size=14),
         axis.title=element_text(size=16),

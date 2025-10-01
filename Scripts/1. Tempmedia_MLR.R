@@ -69,8 +69,8 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
   geom_smooth(method = "lm", se = FALSE, color = "green", linetype = "solid") +
   labs(title = "Todas viviendas: Temperatura Interior Real vs Predicha",
-       x = "Temperatura Interior Real (°C)",
-       y = "Temperatura Interior Predicha (°C)") +
+       x = "Real Mean Indoor temperature  (°C)",
+       y = "Predicted Mean Indoor temperature (°C)") +
   xlim(20, 32) +
   ylim(20, 32) +
   coord_fixed(ratio = 1) +

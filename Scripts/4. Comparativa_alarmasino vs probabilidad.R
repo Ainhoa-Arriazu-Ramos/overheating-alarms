@@ -86,7 +86,7 @@ legend("bottomright", legend=c("Método 2 ROC", "Método 1 (punto)"),
 
 # Seleccionar solo métricas relevantes
 resumen_plot <- resumen %>%
-  select(Metodo, Sensitivity, Specificity, Precision, F1) %>%
+  select(Metodo, Sensitivity, Specificity, Accuracy, F1) %>%
   pivot_longer(cols = -Metodo,
                names_to = "Metrica",
                values_to = "Valor")
@@ -101,6 +101,6 @@ ggplot(resumen_plot, aes(x = Metrica, y = Valor, fill = Metodo)) +
   ylim(0, 1) +
   labs(title = "Comparación de métricas entre Métodos",
        x = "Métrica",
-       y = "Valor (0–1)",
-       fill = "Método") +
+       y = "Value (0–1)",
+       fill = "Method") +
   theme_minimal(base_size = 14)
