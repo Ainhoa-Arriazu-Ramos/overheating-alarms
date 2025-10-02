@@ -1,5 +1,8 @@
 #Importar base de datos: Vivtodas_verano_horario==========================================================
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
+  select(-grados_hora)
 
+#Importar librerias
 library(dplyr)
 library(lubridate)
 
@@ -95,7 +98,6 @@ final_umbral_franja <- final_umbral_franja %>%
   )
 
 
-#=============================================================================================================================
 
 #6. Calcular temperatura ponderada diaria por vivienda 
 # Usamos T_mean_franja y pesos para obtener T_ponderada diaria
@@ -111,6 +113,24 @@ final_diario <- final_umbral_franja %>%
 
 #Para ver cuántos 0 y 1 hay en una columna:
 table(final_diario$sobrecalentamiento_dia)
+
+
+#==========================================================================================================================
+
+
+#Importar base de datos: Vivtodas_verano_horario
+
+
+#1. Añadir columna date en esta base de datos
+Vivtodas_diario_media <- Vivtodas_diario_media %>%
+  mutate(date = make_date(year, month, day))
+
+#Fusionar las dos bases de datos en una
+Vivtodas_diario_media <- Vivtodas_diario_media %>%
+  left_join(
+    final_diario %>% select(dwell_numb, date, T_ponderada, sobrecalentamiento_dia),
+    by = c("dwell_numb", "date")
+  )
 
 
 
