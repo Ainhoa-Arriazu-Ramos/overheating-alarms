@@ -2,11 +2,17 @@
 
 #==========================================================================
 
-#Cargar librerías
+#Cargar bibliotecas
 library(dplyr)
 library(lubridate)
+install.packages("pROC")
+library(pROC)
 library(rsample)
 library(ggplot2)
+library(caret)
+
+#Quitar grados hora
+Vivtodas_diario_media <- Vivtodas_diario_media %>% select(-grados_hora)
 
 #Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
@@ -62,13 +68,16 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
     alarma_real = if_else(trm > 30 | Int_T > limiteadap, 1, 0)
   )
 
+
+
 #====================================================================================================
-#MÉTODO 1: ALARMA SI/NO
+#MÉTODO 2: PROBABILIDAD DE ALARMA
 #====================================================================================================
 
 
 #ANALISIS CON TODAS LAS VIVIENDAS JUNTAS==========================================================================
 
+# MODELO RLM: predecir temperatura interior
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
 train_data <- training(split)
@@ -82,20 +91,53 @@ modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD +
 
 summary(modelo_rlm)
 
+
 # Predecir temperatura interior en test
 test_data <- test_data %>%
   mutate(
     Int_T_pred = predict(modelo_rlm, newdata = test_data),
     # Aquí queda tu variable alarma_test
     alarma_test = ifelse(trm > 30 | Int_T_pred > limiteadap, 1, 0),
-    residuos_alarma = alarma_real - alarma_test
-  )
+    )
+
+
+train_data$Int_T_pred <- predict(modelo_rlm, newdata = train_data)
+test_data$Int_T_pred  <- predict(modelo_rlm, newdata = test_data)
+
+
+# MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap
+modelo_logit <- glm(alarma_real ~ Int_T_pred + limiteadap, 
+                    data = train_data, family = binomial)
+
+summary(modelo_logit)
+
+# Predecir probabilidad de alarma en test
+test_data$prob_alarma <- predict(modelo_logit, newdata = test_data, type = "response")
+
+test_data$prob_alarma_pct <- round(test_data$prob_alarma * 100, 1)  # redondea a 1 decimal
+
+
+
+
+
+#Dicotomizar para poder comparar con alarmas reales========================================================================
+
+#Umbral-Percentil90
+prob_umbral <- quantile(test_data$prob_alarma[test_data$alarma_real == 1], 0.1)
+#test_data$prob_alarma[test_data$alarma_real == 1] → selecciona solo los días que tuvieron alarma real.
+#quantile(..., 0.1) → calcula el valor de probabilidad que marca el 10% más bajo de esas alarmas reales.
+  #Es decir, el 90% de las alarmas reales tendrán una probabilidad predicha mayor que este valor.
+
+#Dicotomizar
+test_data$alarma_pred <- ifelse(test_data$prob_alarma >= prob_umbral, 1, 0)
+
+
 
 # Tabla de contingencia para variable dicotomica (Alarma)
-table(test_data$alarma_real, test_data$alarma_test)
+table(test_data$alarma_real, test_data$alarma_pred)
 
 # Crear tabla de contingencia
-conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_test) %>% 
+conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_pred) %>% 
   as.data.frame()
 
 # Graficar heatmap
@@ -113,27 +155,58 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
 
 
 
+
+#Gráfico de puntos con umbral de probabilidad========================================================================
+
+# Gráfico de puntos
+ggplot(test_data, aes(x = Int_T_pred, y = prob_alarma_pct)) +
+  geom_point(size = 2, shape = 21, color = "black", fill = "orange", alpha = 0.8) +
+  
+  # Línea horizontal: umbral probabilidad
+  geom_hline(yintercept = prob_umbral * 100, color = "blue", linetype = "dashed", size = 1.2) +
+  
+  # Etiqueta justo encima de la línea
+  annotate("text",
+           x = max(test_data$Int_T_pred) * 0.95,
+           y = prob_umbral * 100 + 3,  # subir un poco respecto a la línea
+           label = paste0("Prob_alarma = ", round(prob_umbral*100,1), " %"),
+           color = "blue",
+           size = 4,
+           hjust = 1) +
+  
+  labs(title = "Temperatura predicha vs Probabilidad de alarma",
+       x = "Temperatura interior predicha (ºC)",
+       y = "Probabilidad de alarma (%)") +
+  theme_minimal(base_size = 14)
+
+
+
 #Gráfico de FN-FP... segun intervalos de temperatura========================================================================
 
-# 1️⃣ Crear columna tipo (TP, FN, FP, TN) usando alarma_real y alarma_test
+library(dplyr)
+library(ggplot2)
+
+#1.Crear la predicción binaria según tu umbral
+prob_umbral <- 0.41  # tu umbral del 41%
 test_data <- test_data %>%
   mutate(
+    alarma_pred = ifelse(prob_alarma >= prob_umbral, 1, 0),
     tipo = case_when(
-      alarma_real == 1 & alarma_test == 1 ~ "TP",
-      alarma_real == 1 & alarma_test == 0 ~ "FN",
-      alarma_real == 0 & alarma_test == 1 ~ "FP",
-      alarma_real == 0 & alarma_test == 0 ~ "TN"
+      alarma_real == 1 & alarma_pred == 1 ~ "TP",
+      alarma_real == 1 & alarma_pred == 0 ~ "FN",
+      alarma_real == 0 & alarma_pred == 1 ~ "FP",
+      alarma_real == 0 & alarma_pred == 0 ~ "TN"
     ),
-    # 2️⃣ Redondear temperatura predicha a múltiplos de 0.25
-    temp_bin = round(Int_T_pred / 0.25) * 0.25
+#2.Crear intervalos de 0.25ºC para la temperatura predicha
+temp_bin = round(Int_T_pred / 0.25) * 0.25
   )
 
-# 3️⃣ Contar observaciones por tipo en cada temperatura
+#3.Contar el número de observaciones por tipo en cada intervalo
 barras_data <- test_data %>%
   group_by(temp_bin, tipo) %>%
   summarise(n = n(), .groups = "drop")
 
-# 4️⃣ Gráfico de barras apiladas
+#4.Gráfico de barras apiladas
 ggplot(barras_data, aes(x = factor(temp_bin), y = n, fill = tipo)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = c(
@@ -142,7 +215,7 @@ ggplot(barras_data, aes(x = factor(temp_bin), y = n, fill = tipo)) +
     "FP" = "#d62728",   # rojo oscuro
     "FN" = "#ff9896"    # rojo claro
   )) +
-  labs(title = "TP, FN, FP, TN por temperatura predicha (MÉTODO 1)",
+  labs(title = "TP, FN, FP, TN por temperatura predicha",
        x = "Temperatura interior predicha (ºC)",
        y = "Número de observaciones",
        fill = "Tipo de predicción") +
@@ -150,19 +223,3 @@ ggplot(barras_data, aes(x = factor(temp_bin), y = n, fill = tipo)) +
   theme(
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)  # etiquetas verticales
   )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
