@@ -100,9 +100,8 @@ test_data <- test_data %>%
     alarma_test = ifelse(trm > 30 | Int_T_pred > limiteadap, 1, 0),
     )
 
-
+#Añadir tambien la columna Int_T_pred en el train data
 train_data$Int_T_pred <- predict(modelo_rlm, newdata = train_data)
-test_data$Int_T_pred  <- predict(modelo_rlm, newdata = test_data)
 
 
 # MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap
@@ -122,62 +121,143 @@ test_data$prob_alarma_pct <- round(test_data$prob_alarma * 100, 1)  # redondea a
 
 #Dicotomizar para poder comparar con alarmas reales========================================================================
 
-#Umbral-Percentil90
-prob_umbral <- quantile(test_data$prob_alarma[test_data$alarma_real == 1], 0.1)
-#test_data$prob_alarma[test_data$alarma_real == 1] → selecciona solo los días que tuvieron alarma real.
-#quantile(..., 0.1) → calcula el valor de probabilidad que marca el 10% más bajo de esas alarmas reales.
-  #Es decir, el 90% de las alarmas reales tendrán una probabilidad predicha mayor que este valor.
+#============================================================
+# PERCENTILES CONDICIONADOS A ALARMAS REALES: 10,30,50,70
+#============================================================
 
-#Dicotomizar
-test_data$alarma_pred <- ifelse(test_data$prob_alarma >= prob_umbral, 1, 0)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
 
+# Probabilidades solo de los casos con alarma real
+prob_alarmas_reales <- test_data$prob_alarma[test_data$alarma_real == 1]
 
+# Calcular percentiles 10, 30, 50, 70
+percentiles_cond <- quantile(prob_alarmas_reales, probs = c(0.1, 0.3, 0.5, 0.7))
+percentiles_cond
 
-# Tabla de contingencia para variable dicotomica (Alarma)
-table(test_data$alarma_real, test_data$alarma_pred)
+# Crear columnas binarias según cada percentil
+test_data <- test_data %>%
+  mutate(
+    alarma_cond10 = ifelse(prob_alarma >= percentiles_cond[1], 1, 0),
+    alarma_cond30 = ifelse(prob_alarma >= percentiles_cond[2], 1, 0),
+    alarma_cond50 = ifelse(prob_alarma >= percentiles_cond[3], 1, 0),
+    alarma_cond70 = ifelse(prob_alarma >= percentiles_cond[4], 1, 0)
+  )
 
-# Crear tabla de contingencia
-conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_pred) %>% 
-  as.data.frame()
+# Función para etiquetar tipo de predicción
+tipo_pred <- function(pred, real){
+  case_when(
+    real == 1 & pred == 1 ~ "TP",
+    real == 1 & pred == 0 ~ "FN",
+    real == 0 & pred == 1 ~ "FP",
+    real == 0 & pred == 0 ~ "TN"
+  )
+}
 
-# Graficar heatmap
-ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
-  geom_tile(color = "black") +
-  geom_text(aes(label = Freq), size = 8) +
-  scale_fill_gradient(low = "white", high = "steelblue") +
-  labs(title = "Todas viviendas",
-       x = "Predicted Alarm",
-       y = "Real Alarm") +
-  theme_minimal() +
-  theme(axis.text=element_text(size=14),
-        axis.title=element_text(size=16),
-        plot.title=element_text(size=18, face="bold"))
+# Transformar datos a formato largo para ggplot
+barras_data <- test_data %>%
+  select(alarma_real, alarma_cond10, alarma_cond30, alarma_cond50, alarma_cond70) %>%
+  pivot_longer(cols = starts_with("alarma_cond"), names_to = "percentil", values_to = "pred") %>%
+  mutate(tipo = tipo_pred(pred, alarma_real)) %>%
+  group_by(percentil, tipo) %>%
+  summarise(n = n(), .groups = "drop")
 
-
-
-
-#Gráfico de puntos con umbral de probabilidad========================================================================
-
-# Gráfico de puntos
-ggplot(test_data, aes(x = Int_T_pred, y = prob_alarma_pct)) +
-  geom_point(size = 2, shape = 21, color = "black", fill = "orange", alpha = 0.8) +
-  
-  # Línea horizontal: umbral probabilidad
-  geom_hline(yintercept = prob_umbral * 100, color = "blue", linetype = "dashed", size = 1.2) +
-  
-  # Etiqueta justo encima de la línea
-  annotate("text",
-           x = max(test_data$Int_T_pred) * 0.95,
-           y = prob_umbral * 100 + 3,  # subir un poco respecto a la línea
-           label = paste0("Prob_alarma = ", round(prob_umbral*100,1), " %"),
-           color = "blue",
-           size = 4,
-           hjust = 1) +
-  
-  labs(title = "Temperatura predicha vs Probabilidad de alarma",
-       x = "Temperatura interior predicha (ºC)",
-       y = "Probabilidad de alarma (%)") +
+# Gráfico de barras apiladas
+ggplot(barras_data, aes(x = percentil, y = n, fill = tipo)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c(
+    "TP" = "#2ca02c",   # verde oscuro
+    "TN" = "#98df8a",   # verde claro
+    "FP" = "#d62728",   # rojo oscuro
+    "FN" = "#ff9896"    # rojo claro
+  )) +
+  labs(title = "TP, FN, FP, TN según percentil condicionado a alarmas reales",
+       x = "Percentil condicionado",
+       y = "Número de observaciones",
+       fill = "Tipo de predicción") +
   theme_minimal(base_size = 14)
+
+
+
+
+#============================================================
+# SENSIBILIDAD Y ESPECIFICIDAD PARA PERCENTILES CONDICIONADOS
+#============================================================
+
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(tidyr)
+
+# Lista de percentiles condicionados a alarmas reales
+prob_alarmas_reales <- test_data$prob_alarma[test_data$alarma_real == 1]
+percentiles_cond <- quantile(prob_alarmas_reales, probs = c(0.1, 0.3, 0.5, 0.7))
+names(percentiles_cond) <- c("10", "30", "50", "70")
+
+# Crear columnas binarias según cada percentil
+for (p in names(percentiles_cond)) {
+  test_data[[paste0("alarma_cond", p)]] <- ifelse(test_data$prob_alarma >= percentiles_cond[p], 1, 0)
+}
+
+# Función para calcular sensibilidad y especificidad
+calc_metrics <- function(pred_col, real) {
+  cm <- confusionMatrix(as.factor(pred_col), as.factor(real), positive = "1")
+  data.frame(
+    Sensibilidad = cm$byClass["Sensitivity"],
+    Especificidad = cm$byClass["Specificity"]
+  )
+}
+
+# Calcular métricas para cada percentil
+metrics <- lapply(names(percentiles_cond), function(p){
+  df <- calc_metrics(test_data[[paste0("alarma_cond", p)]], test_data$alarma_real)
+  df$Percentil <- p
+  df
+}) %>% bind_rows()
+
+metrics$Percentil <- as.numeric(metrics$Percentil)
+
+# Gráfico de líneas de sensibilidad y especificidad
+metrics_long <- metrics %>%
+  pivot_longer(cols = c("Sensibilidad", "Especificidad"), names_to = "Metrica", values_to = "Valor")
+
+ggplot(metrics_long, aes(x = Percentil, y = Valor, color = Metrica)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  scale_x_continuous(breaks = c(10, 30, 50, 70)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = "Sensibilidad y Especificidad según percentil condicionado a alarmas reales",
+       x = "Percentil condicionado (%)",
+       y = "Valor (%)",
+       color = "Métrica") +
+  theme_minimal(base_size = 14)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
