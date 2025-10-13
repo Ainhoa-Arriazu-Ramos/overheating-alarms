@@ -10,7 +10,10 @@ library(pROC)
 library(rsample)
 library(ggplot2)
 library(caret)
+library(tidyr)
 
+#Quitar grados hora
+Vivtodas_diario_media <- Vivtodas_diario_media %>% select(-grados_hora)
 
 #Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
@@ -68,14 +71,15 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 
 
 
+
+
+
 #====================================================================================================
 #MÉTODO 2: PROBABILIDAD DE ALARMA
 #====================================================================================================
 
 
-#ANALISIS CON TODAS LAS VIVIENDAS JUNTAS==========================================================================
-
-# MODELO RLM: predecir temperatura interior
+# MODELO RLM: predecir temperatura interior======================
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
 train_data <- training(split)
@@ -96,15 +100,13 @@ test_data <- test_data %>%
     Int_T_pred = predict(modelo_rlm, newdata = test_data),
     # Aquí queda tu variable alarma_test
     alarma_test = ifelse(trm > 30 | Int_T_pred > limiteadap, 1, 0),
-    residuos_alarma = alarma_real - alarma_test
-  )
+    )
 
-
+#Añadir tambien la columna Int_T_pred en el train data
 train_data$Int_T_pred <- predict(modelo_rlm, newdata = train_data)
-test_data$Int_T_pred  <- predict(modelo_rlm, newdata = test_data)
 
 
-# MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap
+# MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap======================
 modelo_logit <- glm(alarma_real ~ Int_T_pred + limiteadap, 
                     data = train_data, family = binomial)
 
@@ -115,107 +117,173 @@ test_data$prob_alarma <- predict(modelo_logit, newdata = test_data, type = "resp
 
 test_data$prob_alarma_pct <- round(test_data$prob_alarma * 100, 1)  # redondea a 1 decimal
 
-# Categorizar probabilidad de alarma cada 20%
-test_data <- test_data %>%
-  mutate(prob_alarma_cat = cut(prob_alarma_pct,
-                               breaks = seq(0, 100, 20),
-                               include.lowest = TRUE,
-                               labels = c("0–20%", "21–40%", "41–60%", "61–80%", "81–100%")),
-         borde = ifelse(alarma_real == 1, 1.5, 0))
 
 
 
-# ===================================================================
-# CALCULAR UMBRALES OPTIMOS (percentil 10 de alarmas reales)
-alarmas_real <- test_data %>% filter(alarma_real == 1)
-
-# Umbral temperatura predicha
-temp_pred_umbral90 <- quantile(alarmas_real$Int_T_pred, probs = 0.1)
-temp_pred_umbral90
-
-#Añadir linea horizontal al gráfico
-ggplot(test_data, aes(x = Int_T, y = Int_T_pred, fill = prob_alarma_cat)) +
-  geom_point(aes(stroke = borde), size = 2.5, shape = 21, color = "black", alpha = 0.8) +
-    # Línea roja horizontal
-  geom_hline(yintercept = temp_pred_umbral90, color = "red", linetype = "dashed", size = 1.2) +
-    # Texto sobre la línea indicando el valor
-  annotate("text", 
-           x = max(test_data$Int_T) * 0.95,  # posición horizontal (95% del eje x)
-           y = temp_pred_umbral90 + 0.3,     # posición vertical ligeramente encima de la línea
-           label = paste0("Temp_pred = ", round(temp_pred_umbral90, 2), " ºC"),
-           color = "red",
-           size = 3,
-           hjust = 1) +
-    scale_fill_brewer(palette = "YlOrRd", name = "Probabilidad de alarma") +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black") +
-  labs(title = "Temperatura real vs predicha (línea roja: 90% alarmas reales)",
-       x = "Temperatura interior real (ºC)",
-       y = "Temperatura interior predicha (ºC)") +
-  theme_minimal(base_size = 14)
-
-# Umbral probabilidad de alarma
-prob_umbral90 <- quantile(alarmas_real$prob_alarma, probs = 0.1)
-prob_umbral90
-
-# Gráfico combinado
-ggplot(test_data, aes(x = prob_alarma_pct, y = Int_T_pred, fill = prob_alarma_cat)) +
-  geom_point(aes(stroke = borde), size = 2, shape = 21, color = "black", alpha = 5) +
-  
-# Línea horizontal: umbral temperatura predicha
-geom_hline(yintercept = temp_pred_umbral90, color = "red", linetype = "dashed", size = 1.2) +
-annotate("text",
-           x = max(test_data$prob_alarma_pct) * 0.95,
-           y = temp_pred_umbral90 + 0.3,
-           label = paste0("Temp_pred = ", round(temp_pred_umbral90,2), " ºC"),
-           color = "red",
-           size = 4,
-           hjust = 1) +
-  
-# Línea vertical: umbral probabilidad (convertido a porcentaje)
-geom_vline(xintercept = prob_umbral90 * 100, color = "blue", linetype = "dashed", size = 1.2) +
-annotate("text",
-           x = prob_umbral90 * 100 + 1,
-           y = min(test_data$Int_T_pred) + 0.3,
-           label = paste0("Prob_alarma = ", round(prob_umbral90*100,1), " %"),
-           color = "blue",
-           size = 4,
-           angle = 90,
-           vjust = -0.5) +
-  
-  scale_fill_brewer(palette = "YlOrRd", name = "Range of probability") +
-  labs(title = "Temperatura predicha vs Probabilidad de alarma",
-       x = "Alarm Probability (%)",
-       y = "Predicted Temperature (ºC)") +
-  theme_minimal(base_size = 14)
 
 
-#TABLA DE CONTINGENCIA===============
 
-# CREAR COLUMNA DE ALARMA PREDICHA CON UMBRALES OPTIMOS (Alarma si se supera el Umbral de temp O el Umbral %)
-test_data <- test_data %>%
-  mutate(
-    alarma_pred_m2 = ifelse(Int_T_pred >= temp_pred_umbral90 | prob_alarma >= prob_umbral90, 1, 0)
+
+
+#============================================================
+# PERCENTILES CONDICIONADOS A ALARMAS REALES: 10,30,50,70
+#============================================================
+
+# Probabilidades solo de los casos con alarma real
+prob_alarmas_reales <- test_data$prob_alarma[test_data$alarma_real == 1]
+
+# Calcular percentiles 10, 30, 50, 70
+percentiles_cond <- quantile(prob_alarmas_reales, probs = c(0.1, 0.3, 0.5, 0.7))
+percentiles_cond
+
+
+
+# GRÁFICO: Probabilidad de alarma (%) vs Temperatura interior predicha ============
+
+# Convertir percentiles condicionales a %
+percentiles_cond_pct <- round(percentiles_cond * 100, 1)
+
+# Crear el gráfico
+ggplot(test_data, aes(x = Int_T_pred, y = prob_alarma_pct)) +
+  geom_point(aes(color = factor(alarma_real)), alpha = 0.6, size = 2) +
+  geom_hline(yintercept = percentiles_cond_pct[1], linetype = "dashed", color = "gray40") +
+  geom_hline(yintercept = percentiles_cond_pct[2], linetype = "dashed", color = "gray40") +
+  geom_hline(yintercept = percentiles_cond_pct[3], linetype = "dashed", color = "gray40") +
+  geom_hline(yintercept = percentiles_cond_pct[4], linetype = "dashed", color = "gray40") +
+  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[1], 
+           label = paste0("P10 = ", percentiles_cond_pct[1], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
+  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[2], 
+           label = paste0("P30 = ", percentiles_cond_pct[2], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
+  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[3], 
+           label = paste0("P50 = ", percentiles_cond_pct[3], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
+  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[4], 
+           label = paste0("P70 = ", percentiles_cond_pct[4], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
+  scale_color_manual(values = c("0" = "steelblue", "1" = "firebrick"),
+                     name = "Alarma real",
+                     labels = c("No", "Sí")) +
+  labs(
+    x = "Temperatura interior predicha (°C)",
+    y = "Probabilidad de alarma (%)",
+    title = "Relación entre la temperatura interior predicha y la probabilidad de alarma",
+    subtitle = "Líneas punteadas muestran umbrales de percentiles condicionados a alarmas reales"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(face = "bold")
   )
 
-# TABLA DE CONFUSIÓN
-conf_m2 <- table(Predicho = test_data$alarma_pred_m2,
-                 Real = test_data$alarma_real)
-print(conf_m2)
 
-# CONVERTIR A DATAFRAME PARA GRAFICO
-conf_m2_df <- as.data.frame(conf_m2)
-colnames(conf_m2_df) <- c("Predicho", "Real", "Freq")
 
-# GRÁFICO MATRIZ DE CONFUSIÓN
-ggplot(conf_m2_df, aes(x = Predicho, y = Real, fill = Freq)) +
-  geom_tile(color = "black") +
-  geom_text(aes(label = Freq), size = 8) +
-  scale_fill_gradient(low = "white", high = "steelblue") +
-  labs(title = "Todas viviendas",
-       x = "Alarma Predicha",
-       y = "Alarma Real") +
-  theme_minimal() +
-  theme(axis.text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        plot.title = element_text(size = 18, face = "bold"))
 
+
+#============================================================
+# DICOTOMIZAR PROBABILIDAD DE ALARMA SEGÚN PERCENTILES
+#============================================================
+
+# Crear las columnas binarias según cada percentil (poner los % a mano)
+test_data <- test_data %>%
+  mutate(
+    alarma_pred_P10 = ifelse(prob_alarma_pct >= 40.2, 1, 0),
+    alarma_pred_P30 = ifelse(prob_alarma_pct >= 73, 1, 0),
+    alarma_pred_P50 = ifelse(prob_alarma_pct >= 90.8, 1, 0),
+    alarma_pred_P70 = ifelse(prob_alarma_pct >= 97.6, 1, 0)
+  )
+
+
+#============================================================
+# MATRICES DE CONFUSIÓN VISUALES (HEATMAP) PARA CADA PERCENTIL
+#============================================================
+
+# Función auxiliar para generar matriz y gráfico robusta
+plot_conf_matrix <- function(data, pred_col, label) {
+  
+  # Crear tabla de contingencia forzando niveles 0 y 1
+  conf_mat <- table(
+    Real = factor(data$alarma_real, levels = c(0,1)),
+    Predicho = factor(data[[pred_col]], levels = c(0,1))
+  ) %>% as.data.frame()
+  
+  # Graficar heatmap
+  p <- ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
+    geom_tile(color = "black") +
+    geom_text(aes(label = Freq), size = 8) +
+    scale_fill_gradient(low = "white", high = "steelblue") +
+    labs(title = paste("Matriz de confusión - Umbral", label),
+         x = "Predicción",
+         y = "Valor real") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 14),
+          axis.title = element_text(size = 16),
+          plot.title = element_text(size = 18, face = "bold"))
+  
+  print(p)
+  
+  return(conf_mat)
+}
+
+# Generar matrices y gráficos
+conf_P10 <- plot_conf_matrix(test_data, "alarma_pred_P10", "Percentil 10")
+conf_P30 <- plot_conf_matrix(test_data, "alarma_pred_P30", "Percentil 30")
+conf_P50 <- plot_conf_matrix(test_data, "alarma_pred_P50", "Percentil 50")
+conf_P70 <- plot_conf_matrix(test_data, "alarma_pred_P70", "Percentil 70")
+
+
+
+
+
+#Se elige el Percentil 10 
+
+
+
+
+#============================================================
+#Gráfico de FN-FP... segun intervalos de temperatura
+#============================================================
+
+# 1. Clasificar cada fila como TP, TN, FP, FN
+test_data <- test_data %>%
+  mutate(
+    categoria = case_when(
+      alarma_real == 1 & alarma_pred_P10 == 1 ~ "TP",
+      alarma_real == 0 & alarma_pred_P10 == 0 ~ "TN",
+      alarma_real == 0 & alarma_pred_P10 == 1 ~ "FP",
+      alarma_real == 1 & alarma_pred_P10 == 0 ~ "FN"
+    )
+  )
+
+# 2. Crear columna de rango de temperatura predicha (0.5 °C)
+test_data <- test_data %>%
+  mutate(
+    temp_bin = cut(Int_T_pred,
+                   breaks = seq(floor(min(Int_T_pred)), ceiling(max(Int_T_pred)), by = 0.5),
+                   include.lowest = TRUE,
+                   right = FALSE)
+  )
+
+# 3. Contar número de observaciones por temp_bin y categoría
+barras_data <- test_data %>%
+  group_by(temp_bin, categoria) %>%
+  summarise(n = n(), .groups = "drop")
+
+# 4. Definir colores: TP/TN verdes, FP/FN rojos
+colores <- c("TP" = "#2ECC71",  # verde
+             "TN" = "#27AE60",  # verde oscuro
+             "FP" = "#E74C3C",  # rojo
+             "FN" = "#C0392B")  # rojo oscuro
+
+# 5. Gráfico de barras apiladas
+ggplot(barras_data, aes(x = temp_bin, y = n, fill = categoria)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = colores) +
+  labs(
+    x = "Rango de temperatura interior predicha (°C)",
+    y = "Número de observaciones",
+    fill = "Categoría",
+    title = "Distribución de TP, TN, FP y FN por temperatura predicha (Percentil 10)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    plot.title = element_text(face = "bold")
+  )

@@ -113,56 +113,56 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
 
 
 
-#Gráfico de FN-FP... segun intervalos de temperatura========================================================================
 
-# 1️⃣ Crear columna tipo (TP, FN, FP, TN) usando alarma_real y alarma_test
+
+
+#============================================================
+#Gráfico de FN-FP... segun intervalos de temperatura
+#============================================================
+
+# 1. Clasificar cada fila como TP, TN, FP, FN
 test_data <- test_data %>%
   mutate(
-    tipo = case_when(
-      alarma_real == 1 & alarma_test == 1 ~ "TP",
-      alarma_real == 1 & alarma_test == 0 ~ "FN",
-      alarma_real == 0 & alarma_test == 1 ~ "FP",
-      alarma_real == 0 & alarma_test == 0 ~ "TN"
-    ),
-    # 2️⃣ Redondear temperatura predicha a múltiplos de 0.25
-    temp_bin = round(Int_T_pred / 0.25) * 0.25
+    categoria = case_when(
+      alarma_real == 1 & alarma_pred_P10 == 1 ~ "TP",
+      alarma_real == 0 & alarma_pred_P10 == 0 ~ "TN",
+      alarma_real == 0 & alarma_pred_P10 == 1 ~ "FP",
+      alarma_real == 1 & alarma_pred_P10 == 0 ~ "FN"
+    )
   )
 
-# 3️⃣ Contar observaciones por tipo en cada temperatura
+# 2. Crear columna de rango de temperatura predicha (0.5 °C)
+test_data <- test_data %>%
+  mutate(
+    temp_bin = cut(Int_T_pred,
+                   breaks = seq(floor(min(Int_T_pred)), ceiling(max(Int_T_pred)), by = 0.5),
+                   include.lowest = TRUE,
+                   right = FALSE)
+  )
+
+# 3. Contar número de observaciones por temp_bin y categoría
 barras_data <- test_data %>%
-  group_by(temp_bin, tipo) %>%
+  group_by(temp_bin, categoria) %>%
   summarise(n = n(), .groups = "drop")
 
-# 4️⃣ Gráfico de barras apiladas
-ggplot(barras_data, aes(x = factor(temp_bin), y = n, fill = tipo)) +
+# 4. Definir colores: TP/TN verdes, FP/FN rojos
+colores <- c("TP" = "#2ECC71",  # verde
+             "TN" = "#27AE60",  # verde oscuro
+             "FP" = "#E74C3C",  # rojo
+             "FN" = "#C0392B")  # rojo oscuro
+
+# 5. Gráfico de barras apiladas
+ggplot(barras_data, aes(x = temp_bin, y = n, fill = categoria)) +
   geom_bar(stat = "identity") +
-  scale_fill_manual(values = c(
-    "TP" = "#2ca02c",   # verde oscuro
-    "TN" = "#98df8a",   # verde claro
-    "FP" = "#d62728",   # rojo oscuro
-    "FN" = "#ff9896"    # rojo claro
-  )) +
-  labs(title = "TP, FN, FP, TN por temperatura predicha (MÉTODO 1)",
-       x = "Temperatura interior predicha (ºC)",
-       y = "Número de observaciones",
-       fill = "Tipo de predicción") +
+  scale_fill_manual(values = colores) +
+  labs(
+    x = "Rango de temperatura interior predicha (°C)",
+    y = "Número de observaciones",
+    fill = "Categoría",
+    title = "Distribución de TP, TN, FP y FN por temperatura predicha (Percentil 10)"
+  ) +
   theme_minimal(base_size = 14) +
   theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)  # etiquetas verticales
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    plot.title = element_text(face = "bold")
   )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
