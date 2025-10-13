@@ -287,3 +287,21 @@ ggplot(barras_data, aes(x = temp_bin, y = n, fill = categoria)) +
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
     plot.title = element_text(face = "bold")
   )
+
+
+
+#============================================================
+#Valor de temperatura más cercano a la probabilidad de 40.2%
+#============================================================
+# Valor del percentil 10
+umbral_pct10 <- 40.2
+
+# Buscar la fila más cercana a ese valor de probabilidad
+fila_cercana <- test_data %>%
+  mutate(dif = abs(prob_alarma_pct - umbral_pct10)) %>%
+  arrange(dif) %>%
+  slice(1) %>%
+  select(Int_T_pred, prob_alarma_pct, limiteadap, alarma_real)
+
+fila_cercana
+

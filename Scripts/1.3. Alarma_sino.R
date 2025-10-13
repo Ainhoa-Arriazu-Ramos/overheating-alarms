@@ -124,10 +124,10 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
 test_data <- test_data %>%
   mutate(
     categoria = case_when(
-      alarma_real == 1 & alarma_pred_P10 == 1 ~ "TP",
-      alarma_real == 0 & alarma_pred_P10 == 0 ~ "TN",
-      alarma_real == 0 & alarma_pred_P10 == 1 ~ "FP",
-      alarma_real == 1 & alarma_pred_P10 == 0 ~ "FN"
+      alarma_real == 1 & alarma_test == 1 ~ "TP",
+      alarma_real == 0 & alarma_test == 0 ~ "TN",
+      alarma_real == 0 & alarma_test == 1 ~ "FP",
+      alarma_real == 1 & alarma_test == 0 ~ "FN"
     )
   )
 
@@ -159,7 +159,7 @@ ggplot(barras_data, aes(x = temp_bin, y = n, fill = categoria)) +
     x = "Rango de temperatura interior predicha (°C)",
     y = "Número de observaciones",
     fill = "Categoría",
-    title = "Distribución de TP, TN, FP y FN por temperatura predicha (Percentil 10)"
+    title = "Distribución de TP, TN, FP y FN por temperatura predicha"
   ) +
   theme_minimal(base_size = 14) +
   theme(
