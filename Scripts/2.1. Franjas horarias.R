@@ -1,12 +1,14 @@
 #Importar base de datos: Vivtodas_verano_horario==========================================================
-Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
-  select(-grados_hora)
 
 #Importar librerias
 library(dplyr)
 library(lubridate)
 
-#0. Definiciones de franjas
+
+#0. Quitar grados hora
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>% select(-grados_hora)
+
+#1. Definiciones de franjas
 franjas <- tibble(
   hour = 0:23,
   franja = case_when(
@@ -31,8 +33,7 @@ franjas <- tibble(
 )
 
 
-
-#1. Añadir columna date y asociar franja a cada fila horaria
+#2. Añadir columna date y asociar franja a cada fila horaria
 Vivtodas_verano_horario2 <- Vivtodas_verano_horario %>%
   mutate(date = make_date(year, month, day)) %>%
   left_join(franjas, by = "hour")
@@ -115,22 +116,6 @@ final_diario <- final_umbral_franja %>%
 table(final_diario$sobrecalentamiento_dia)
 
 
-#==========================================================================================================================
-
-
-#Importar base de datos: Vivtodas_verano_horario
-
-
-#1. Añadir columna date en esta base de datos
-Vivtodas_diario_media <- Vivtodas_diario_media %>%
-  mutate(date = make_date(year, month, day))
-
-#Fusionar las dos bases de datos en una
-Vivtodas_diario_media <- Vivtodas_diario_media %>%
-  left_join(
-    final_diario %>% select(dwell_numb, date, T_ponderada, sobrecalentamiento_dia),
-    by = c("dwell_numb", "date")
-  )
 
 
 

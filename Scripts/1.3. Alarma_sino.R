@@ -8,6 +8,11 @@ library(lubridate)
 library(rsample)
 library(ggplot2)
 
+
+#==========================================================================
+
+
+
 #Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
   # Crear columna de fecha
@@ -67,7 +72,7 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 #====================================================================================================
 
 
-#ANALISIS CON TODAS LAS VIVIENDAS JUNTAS==========================================================================
+#MLR==========================================================================
 
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
