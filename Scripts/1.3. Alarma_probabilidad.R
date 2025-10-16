@@ -2,7 +2,7 @@
 
 #==========================================================================
 
-#Cargar bibliotecas
+#Cargar librerías
 library(dplyr)
 library(lubridate)
 install.packages("pROC")
@@ -11,6 +11,9 @@ library(rsample)
 library(ggplot2)
 library(caret)
 library(tidyr)
+
+#==========================================================================
+
 
 #Quitar grados hora
 Vivtodas_diario_media <- Vivtodas_diario_media %>% select(-grados_hora)
@@ -79,7 +82,7 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 #====================================================================================================
 
 
-# MODELO RLM: predecir temperatura interior======================
+#MLR==========================================================================
 set.seed(123)
 split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
 train_data <- training(split)
@@ -126,119 +129,114 @@ test_data$prob_alarma_pct <- round(test_data$prob_alarma * 100, 1)  # redondea a
 
 
 #============================================================
-# PERCENTILES CONDICIONADOS A ALARMAS REALES: 10,30,50,70
+# PERCENTIL CONDICIONADO A ALARMAS REALES: 10
 #============================================================
 
 # Probabilidades solo de los casos con alarma real
 prob_alarmas_reales <- test_data$prob_alarma[test_data$alarma_real == 1]
 
-# Calcular percentiles 10, 30, 50, 70
-percentiles_cond <- quantile(prob_alarmas_reales, probs = c(0.1, 0.3, 0.5, 0.7))
-percentiles_cond
+# Calcular percentil 10
+percentil_cond <- quantile(prob_alarmas_reales, probs = 0.1)
+percentil_cond
 
 
+#============================================================
+# GRÁFICO: Probabilidad de alarma (%) vs Temperatura interior predicha
+#============================================================
 
-# GRÁFICO: Probabilidad de alarma (%) vs Temperatura interior predicha ============
+# Convertir percentil condicional a %
+percentil_cond_pct <- round(percentil_cond * 100, 1)
 
-# Convertir percentiles condicionales a %
-percentiles_cond_pct <- round(percentiles_cond * 100, 1)
+# Registrar Times New Roman (solo necesario en Windows)
+windowsFonts(TimesNR = windowsFont("Times New Roman"))
 
 # Crear el gráfico
 ggplot(test_data, aes(x = Int_T_pred, y = prob_alarma_pct)) +
-  geom_point(aes(color = factor(alarma_real)), alpha = 0.6, size = 2) +
-  geom_hline(yintercept = percentiles_cond_pct[1], linetype = "dashed", color = "gray40") +
-  geom_hline(yintercept = percentiles_cond_pct[2], linetype = "dashed", color = "gray40") +
-  geom_hline(yintercept = percentiles_cond_pct[3], linetype = "dashed", color = "gray40") +
-  geom_hline(yintercept = percentiles_cond_pct[4], linetype = "dashed", color = "gray40") +
-  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[1], 
-           label = paste0("P10 = ", percentiles_cond_pct[1], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
-  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[2], 
-           label = paste0("P30 = ", percentiles_cond_pct[2], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
-  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[3], 
-           label = paste0("P50 = ", percentiles_cond_pct[3], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
-  annotate("text", x = min(test_data$Int_T_pred), y = percentiles_cond_pct[4], 
-           label = paste0("P70 = ", percentiles_cond_pct[4], "%"), vjust = -0.8, hjust = 0, size = 3.5) +
+  geom_point(aes(color = factor(alarma_real)), alpha = 1, size = 2) +
+  geom_hline(yintercept = percentil_cond_pct, linetype = "dashed", color = "gray40") +
+  annotate("text",
+           x = min(test_data$Int_T_pred),
+           y = percentil_cond_pct,
+           label = paste0("P10 = ", percentil_cond_pct, "%"),
+           vjust = -0.8, hjust = 0, size = 4, family = "TimesNR") +
   scale_color_manual(values = c("0" = "steelblue", "1" = "firebrick"),
-                     name = "Alarma real",
-                     labels = c("No", "Sí")) +
+                     name = "Alarm_real",
+                     labels = c("No (0)", "Yes (1)")) +
+  scale_x_continuous(limits = c(min(test_data$Int_T_pred), 32),
+                     breaks = seq(floor(min(test_data$Int_T_pred)), 32, by = 1)) +
   labs(
-    x = "Temperatura interior predicha (°C)",
-    y = "Probabilidad de alarma (%)",
-    title = "Relación entre la temperatura interior predicha y la probabilidad de alarma",
-    subtitle = "Líneas punteadas muestran umbrales de percentiles condicionados a alarmas reales"
+    x = "Predicted Daily Mean Indoor Temperature (°C)",
+    y = "Probability of alarm (%)"
   ) +
-  theme_minimal(base_size = 12) +
+  theme_minimal(base_size = 12, base_family = "TimesNR") +
   theme(
-    legend.position = "top",
-    plot.title = element_text(face = "bold")
+    legend.position = "right",
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 13),
+    axis.title = element_text(size = 14, margin = margin(t = 10, r = 10)),
+    axis.text = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 13)
   )
 
 
-
-
-
 #============================================================
-# DICOTOMIZAR PROBABILIDAD DE ALARMA SEGÚN PERCENTILES
+# DICOTOMIZAR PROBABILIDAD DE ALARMA SEGÚN PERCENTIL 10
 #============================================================
 
-# Crear las columnas binarias según cada percentil (poner los % a mano)
+# Crear la columna binaria según el percentil 10 (poner el valor % a mano)
 test_data <- test_data %>%
   mutate(
-    alarma_pred_P10 = ifelse(prob_alarma_pct >= 40.2, 1, 0),
-    alarma_pred_P30 = ifelse(prob_alarma_pct >= 73, 1, 0),
-    alarma_pred_P50 = ifelse(prob_alarma_pct >= 90.8, 1, 0),
-    alarma_pred_P70 = ifelse(prob_alarma_pct >= 97.6, 1, 0)
+    alarma_pred_P10 = ifelse(prob_alarma_pct >= 40.2, 1, 0)
   )
 
 
 #============================================================
-# MATRICES DE CONFUSIÓN VISUALES (HEATMAP) PARA CADA PERCENTIL
+# MATRIZ DE CONFUSIÓN VISUAL (HEATMAP) - PERCENTIL 10
 #============================================================
 
-# Función auxiliar para generar matriz y gráfico robusta
+# Función auxiliar para generar matriz y gráfico con estilo personalizado
 plot_conf_matrix <- function(data, pred_col, label) {
+  
+  # Asegurar fuente Times New Roman
+  windowsFonts(TimesNR = windowsFont("Times New Roman"))
   
   # Crear tabla de contingencia forzando niveles 0 y 1
   conf_mat <- table(
-    Real = factor(data$alarma_real, levels = c(0,1)),
-    Predicho = factor(data[[pred_col]], levels = c(0,1))
+    Real = factor(data$alarma_real, levels = c(0, 1)),
+    Predicho = factor(data[[pred_col]], levels = c(0, 1))
   ) %>% as.data.frame()
   
-  # Graficar heatmap
+  # Graficar heatmap con el estilo solicitado
   p <- ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
     geom_tile(color = "black") +
-    geom_text(aes(label = Freq), size = 8) +
-    scale_fill_gradient(low = "white", high = "steelblue") +
-    labs(title = paste("Matriz de confusión - Umbral", label),
-         x = "Predicción",
-         y = "Valor real") +
-    theme_minimal() +
-    theme(axis.text = element_text(size = 14),
-          axis.title = element_text(size = 16),
-          plot.title = element_text(size = 18, face = "bold"))
+    geom_text(aes(label = Freq), size = 14, family = "TimesNR") +  # Números dentro de las cajas
+    scale_fill_gradient(low = "white", high = "steelblue", name = "") +  # Sin "Freq" en leyenda
+    labs(
+     x = "Alarm_predicted",
+      y = "Alarm_real"
+    ) +
+    theme_minimal(base_family = "TimesNR") +  # Times en todo el gráfico
+    theme(
+      axis.text = element_text(size = 18),        # Texto ejes
+      axis.title = element_text(size = 20),       # Títulos ejes
+      legend.text = element_text(size = 16),      # Texto leyenda
+      plot.title = element_text(size = 22, face = "bold", hjust = 0.5),  # Título centrado
+      panel.grid = element_blank(),               # Sin líneas de fondo
+      axis.ticks = element_blank()                # Sin marcas de eje
+    )
   
   print(p)
   
   return(conf_mat)
 }
 
-# Generar matrices y gráficos
+# Ejecutar para percentil 10
 conf_P10 <- plot_conf_matrix(test_data, "alarma_pred_P10", "Percentil 10")
-conf_P30 <- plot_conf_matrix(test_data, "alarma_pred_P30", "Percentil 30")
-conf_P50 <- plot_conf_matrix(test_data, "alarma_pred_P50", "Percentil 50")
-conf_P70 <- plot_conf_matrix(test_data, "alarma_pred_P70", "Percentil 70")
-
-
-
-
-
-#Se elige el Percentil 10 
-
-
 
 
 #============================================================
-#Gráfico de FN-FP... segun intervalos de temperatura
+# CLASIFICACIÓN TP / TN / FP / FN - PERCENTIL 10
 #============================================================
 
 # 1. Clasificar cada fila como TP, TN, FP, FN
@@ -267,32 +265,43 @@ barras_data <- test_data %>%
   summarise(n = n(), .groups = "drop")
 
 # 4. Definir colores: TP/TN verdes, FP/FN rojos
-colores <- c("TP" = "#2ECC71",  # verde
-             "TN" = "#27AE60",  # verde oscuro
-             "FP" = "#E74C3C",  # rojo
-             "FN" = "#C0392B")  # rojo oscuro
+colores <- c(
+  "TP" = "#27AE60",  # verde más intenso
+  "TN" = "#2ECC71",  # verde más suave
+  "FP" = "#E74C3C",  # rojo más suave
+  "FN" = "#C0392B"   # rojo más intenso
+)
 
 # 5. Gráfico de barras apiladas
+# Registrar Times New Roman en Windows
+windowsFonts(TimesNR = windowsFont("Times New Roman"))
+
+# Asegurar que el eje X esté ordenado correctamente
+barras_data$temp_bin <- factor(barras_data$temp_bin, levels = sort(unique(barras_data$temp_bin)))
+
+# Crear el gráfico de barras apiladas con estilo uniforme
 ggplot(barras_data, aes(x = temp_bin, y = n, fill = categoria)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = colores) +
+  geom_bar(stat = "identity") +  # sin borde negro
+  scale_fill_manual(values = colores, name = "") +
   labs(
-    x = "Rango de temperatura interior predicha (°C)",
-    y = "Número de observaciones",
-    fill = "Categoría",
-    title = "Distribución de TP, TN, FP y FN por temperatura predicha (Percentil 10)"
-  ) +
-  theme_minimal(base_size = 14) +
+    x = "Predicted Temperature (°C)",
+    y = "Count",
+      ) +
+  scale_y_continuous(limits = c(0, 65), breaks = seq(0, 65, by = 5), expand = c(0, 0)) +
+  theme_minimal(base_family = "TimesNR") +
   theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-    plot.title = element_text(face = "bold")
-  )
-
-
+    axis.title.x = element_text(size = 16, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 16, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
+    axis.text.y = element_text(size = 14),
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    legend.text = element_text(size = 14),
+     )
 
 #============================================================
-#Valor de temperatura más cercano a la probabilidad de 40.2%
+# Valor de temperatura más cercano a la probabilidad de 40.2%
 #============================================================
+
 # Valor del percentil 10
 umbral_pct10 <- 40.2
 
@@ -304,4 +313,3 @@ fila_cercana <- test_data %>%
   select(Int_T_pred, prob_alarma_pct, limiteadap, alarma_real)
 
 fila_cercana
-

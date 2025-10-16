@@ -104,19 +104,22 @@ conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_test
   as.data.frame()
 
 # Graficar heatmap
+windowsFonts(TimesNR = windowsFont("Times New Roman"))
+
 ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
   geom_tile(color = "black") +
-  geom_text(aes(label = Freq), size = 8) +
-  scale_fill_gradient(low = "white", high = "steelblue") +
-  labs(title = "Todas viviendas",
-       x = "Predicted Alarm",
-       y = "Real Alarm") +
-  theme_minimal() +
-  theme(axis.text=element_text(size=14),
-        axis.title=element_text(size=16),
-        plot.title=element_text(size=18, face="bold"))
-
-
+  geom_text(aes(label = Freq), size = 14, family = "TimesNR") +  # Números dentro de las cajas
+  scale_fill_gradient(low = "white", high = "steelblue", name = "") +  # Quita "Freq" de la leyenda
+  labs(
+    x = "Alarm_predicted",
+    y = "Alarm_real"
+  ) +
+  theme_minimal(base_family = "TimesNR") +  # Times en todo el gráfico
+  theme(
+    axis.text = element_text(size = 18),       # Números de los ejes
+    axis.title = element_text(size = 20),      # Títulos de los ejes
+    legend.text = element_text(size = 16)      # Números de la barra de colores
+  )
 
 
 
@@ -150,24 +153,36 @@ barras_data <- test_data %>%
   group_by(temp_bin, categoria) %>%
   summarise(n = n(), .groups = "drop")
 
-# 4. Definir colores: TP/TN verdes, FP/FN rojos
-colores <- c("TP" = "#2ECC71",  # verde
-             "TN" = "#27AE60",  # verde oscuro
-             "FP" = "#E74C3C",  # rojo
-             "FN" = "#C0392B")  # rojo oscuro
+
 
 # 5. Gráfico de barras apiladas
+# Registrar Times New Roman en Windows
+windowsFonts(TimesNR = windowsFont("Times New Roman"))
+
+
+colores <- c(
+  "TP" = "#27AE60",  # verde más intenso (TP)
+  "TN" = "#2ECC71",  # verde más suave (TN)
+  "FP" = "#E74C3C",  # rojo más suave (FP)
+  "FN" = "#C0392B"   # rojo más intenso (FN)
+)
+
+barras_data$temp_bin <- factor(barras_data$temp_bin, levels = sort(unique(barras_data$temp_bin)))
+
 ggplot(barras_data, aes(x = temp_bin, y = n, fill = categoria)) +
-  geom_bar(stat = "identity") +
-  scale_fill_manual(values = colores) +
+  geom_bar(stat = "identity") +  # sin borde
+  scale_fill_manual(values = colores, name = "") +
   labs(
-    x = "Rango de temperatura interior predicha (°C)",
-    y = "Número de observaciones",
-    fill = "Categoría",
-    title = "Distribución de TP, TN, FP y FN por temperatura predicha"
+    x = "Predicted Temperature (°C)",
+    y = "Count"
   ) +
-  theme_minimal(base_size = 14) +
+  scale_y_continuous(limits = c(0, 65), breaks = seq(0, 65, by = 5), expand = c(0,0)) +  # expand=0 evita ticks extra
+  theme_minimal(base_family = "TimesNR") +
   theme(
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-    plot.title = element_text(face = "bold")
+    axis.title.x = element_text(size = 16, margin = margin(t = 15)),
+    axis.title.y = element_text(size = 16, margin = margin(r = 15)),
+    axis.text.x = element_text(size = 14, angle = 90, hjust = 1, vjust = 0.5),
+    axis.text.y = element_text(size = 14),
+    plot.title = element_text(size = 18, face = "bold"),
+    legend.text = element_text(size = 14)
   )
