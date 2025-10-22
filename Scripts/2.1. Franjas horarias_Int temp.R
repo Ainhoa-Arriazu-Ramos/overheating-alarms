@@ -6,17 +6,29 @@ library(lubridate)
 library(ggplot2)
 library(tidyr)
 
-#0. Quitar grados hora
+#1. LIimpieza inicialL======================================================================================
+
+#Quitar grados hora
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>% select(-grados_hora)
 
-#1. Quitar las entradas del año 2021 (nos quedamos solo con 2022, verano extremo)
+#Quitar las entradas del año 2021 (nos quedamos solo con 2022, verano extremo)
 #Se deja: Año 2022 (Junio, Julio y Agosto)
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   filter(year != 2021)
 
-#=========================================================================================================
+#Crear columna de fecha
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
+  mutate(date = make_date(year, month, day))
 
-#2. Definir las franjas horarias y sus pesos
+
+
+
+
+#===============================================================================================================
+#DESARROLLO: Predicción de la temperatura media de cada franja en base a temperaturas diarias de días anteriores
+#===============================================================================================================
+
+#2. Definir las franjas horarias y sus pesos===============================================================
 franjas <- tibble(
   hour = 0:23,
   franja = case_when(
@@ -36,35 +48,15 @@ franjas <- tibble(
   )
 )
 
-#2. Crear columna de fecha
-Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
-  mutate(date = make_date(year, month, day))
-
-#3. Asignar franja a cada observación horaria
+#Asignar franja a cada observación horaria
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   left_join(franjas, by = "hour")
 
-#===============================================================================================
 
-#4. Calcular temperatura media por franja
-T_franja_mean <- Vivtodas_verano_horario %>%
-  group_by(dwell_numb, date, franja, peso) %>%
-  summarise(
-    T_mean_franja = mean(Int_T, na.rm = TRUE),
-    .groups = "drop"
-  )
 
-#5. Calcular temperatura ponderada diaria
-T_ponderada_diaria <- Vivtodas_franja_mean %>%
-  group_by(dwell_numb, date) %>%
-  summarise(
-    T_ponderada = sum(T_mean_franja * peso, na.rm = TRUE) / sum(peso, na.rm = TRUE),
-    .groups = "drop"
-  )
 
-#================================================================================================
+#3. Variables diarias y lags ===============================================================================================
 
-#6. Calcular medias diarias de las variables exteriores y Join de la Tponderada a la base de datos con medias diarias
 Vivtodas_diario <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date) %>%
   summarise(
@@ -72,18 +64,15 @@ Vivtodas_diario <- Vivtodas_verano_horario %>%
     Ext_RAD_mean = mean(Ext_RAD, na.rm = TRUE),
     Int_T_mean = mean(Int_T, na.rm = TRUE),
     .groups = "drop"
-  ) %>%
- 
-  left_join(T_ponderada_diaria, by = c("dwell_numb", "date")) %>%
-  arrange(dwell_numb, date)
+  )
 
-#7. Crear lags de 9 días
+# Crear lags de hasta 9 días
 Vivtodas_diario <- Vivtodas_diario %>%
   group_by(dwell_numb) %>%
   arrange(date) %>%
   mutate(
     across(
-      c(Ext_T_mean, T_ponderada, Int_T_mean),
+      c(Ext_T_mean, Int_T_mean),
       list(
         lag1 = ~lag(., 1), lag2 = ~lag(., 2), lag3 = ~lag(., 3),
         lag4 = ~lag(., 4), lag5 = ~lag(., 5), lag6 = ~lag(., 6),
@@ -93,39 +82,42 @@ Vivtodas_diario <- Vivtodas_diario %>%
     ),
     Ext_RAD_mean_lag1 = lag(Ext_RAD_mean, 1)
   ) %>%
-  ungroup()
-
-Vivtodas_diario <- Vivtodas_diario %>%
+  ungroup() %>%
   drop_na()
 
-#====================================================================================================
 
-#8. Unir las medias de franja (franjas) con las variables predictoras (diarias)
+
+#4. Calcular temperatura media por franja================================================================================================
+
+T_franja_mean <- Vivtodas_verano_horario %>%
+  group_by(dwell_numb, date, franja) %>%
+  summarise(
+    T_mean_franja = mean(Int_T, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    tipo_umbral = if_else(
+      franja %in% c("Noche_0_3", "Noche_4_7", "Noche_20_23"),
+      "fijo",
+      "adaptativo"
+    )
+  )
+
+
+
+
+#5. Unión de tablas (franja + variables predictoras)================================================================================================
+
 base_final <- T_franja_mean %>%
   left_join(Vivtodas_diario, by = c("dwell_numb", "date")) %>%
-  filter(!is.na(Ext_T_mean_lag9), !is.na(T_ponderada_lag9), !is.na(Int_T_mean_lag9))
+  filter(!is.na(Ext_T_mean_lag9), !is.na(Int_T_mean_lag9))
 
-#====================================================================================================
-#MLR
-#====================================================================================================
 
-#9. MLR (con exterior y temperatura ponderada)
-modelo_1 <- lm(
-  T_mean_franja ~ Ext_T_mean +
-    Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
-    Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
-    Ext_T_mean_lag7 + Ext_T_mean_lag8 + Ext_T_mean_lag9 +
-    T_ponderada_lag1 + T_ponderada_lag2 + T_ponderada_lag3 +
-    T_ponderada_lag4 + T_ponderada_lag5 + T_ponderada_lag6 +
-    T_ponderada_lag7 + T_ponderada_lag8 + T_ponderada_lag9 +
-    Ext_RAD_mean,
-  data = base_final
-)
 
-summary(modelo_1)
 
-#10. MLR (con exterior y temperatura interior)
-modelo_2 <- lm(
+
+#6.Modelo de regresión lineal (MRL)====================================================================================================
+modelo <- lm(
   T_mean_franja ~ Ext_T_mean +
     Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
     Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
@@ -137,72 +129,89 @@ modelo_2 <- lm(
   data = base_final
 )
 
-summary(modelo_2)
+summary(modelo)
+
+
+
+
 
 
 #====================================================================================================
-#GRÁFICOS
+#ANÁLISIS
 #====================================================================================================
 
-#0. Importar librerias
+#1. Predicciones vs valores reales===================================================================
+
+# Predicciones del modelo
+base_final$T_pred <- predict(modelo, newdata = base_final)
+
+# Gráfico comparativo
+ggplot(base_final, aes(x = T_mean_franja, y = T_pred)) +
+  geom_point(alpha = 0.5, color = "steelblue") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    title = "Temperatura real vs predicha por el modelo",
+    x = "Temperatura real (°C)",
+    y = "Temperatura predicha (°C)"
+  ) +
+  theme_minimal()
+
+
+
+#2. Errores de predicción (residuos)=================================================================
+
+base_final$resid <- base_final$T_mean_franja - base_final$T_pred
+
+ggplot(base_final, aes(x = T_pred, y = resid)) +
+  geom_point(alpha = 0.5, color = "darkorange") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  labs(
+    title = "Residuos vs Temperatura predicha",
+    x = "Temperatura predicha (°C)",
+    y = "Error (real - predicha)"
+  ) +
+  theme_minimal()
+
+
+
+#3. Desempeño del modelo por franja horaria =================================================================
+
+ggplot(base_final, aes(x = T_mean_franja, y = T_pred, color = franja)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "dashed") +
+  facet_wrap(~franja) +
+  labs(
+    title = "Temperatura real vs predicha por franja horaria",
+    x = "Temperatura real (°C)",
+    y = "Temperatura predicha (°C)"
+  ) +
+  theme_minimal()
+
+
+#4. Serie temporal comparando real vs predicho ===============================================================
+
+# Selecciona una vivienda de ejemplo
+ejemplo <- base_final %>% filter(dwell_numb == unique(dwell_numb)[1])
+
+ggplot(ejemplo, aes(x = date)) +
+  geom_line(aes(y = T_mean_franja, color = "Real")) +
+  geom_line(aes(y = T_pred, color = "Predicha"), linetype = "dashed") +
+  labs(
+    title = "Serie temporal de temperatura (real vs predicha)",
+    x = "Fecha", y = "Temperatura (°C)"
+  ) +
+  scale_color_manual(values = c("Real" = "black", "Predicha" = "red")) +
+  theme_minimal()
+
+
+#Métricas cuantitativas: R², RMSE, MAE ======================================================================
 library(Metrics)
 
+R2 <- summary(modelo)$r.squared
+RMSE <- rmse(base_final$T_mean_franja, base_final$T_pred)
+MAE <- mae(base_final$T_mean_franja, base_final$T_pred)
 
-#1. Observado vs Predicho
-# Añadir predicciones al dataframe
-modelo_base <- modelo_base %>%
-  mutate(T_predicha = predict(modelo))
-
-# Gráfico básico
-plot(modelo_base$T_mean_franja, modelo_base$T_predicha,
-     xlab = "T_mean_franja observada",
-     ylab = "T_mean_franja predicha",
-     main = "Temperatura interior por franja: Observada vs Predicha",
-     pch = 16, col = "blue")
-abline(0, 1, col = "red", lwd = 2)  # línea 1:1
-
-
-
-#========================
-#CALCULAR EL DESEMPEÑO PARA CADA FRANJA
-#========================
-
-# Crear columna de residuo
-modelo_base <- modelo_base %>%
-  mutate(residuo = T_mean_franja - T_predicha)
-
-# Calcular métricas por franja
-errores_por_franja <- modelo_base %>%
-  group_by(franja) %>%
-  summarise(
-    RMSE = sqrt(mean(residuo^2, na.rm = TRUE)),
-    MAE  = mean(abs(residuo), na.rm = TRUE),
-    R2   = cor(T_mean_franja, T_predicha, use = "complete.obs")^2,
-    .groups = "drop"
-  )
-
-errores_por_franja
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+cat("R² =", round(R2, 3), "\nRMSE =", round(RMSE, 2), "\nMAE =", round(MAE, 2))
 
 
 
