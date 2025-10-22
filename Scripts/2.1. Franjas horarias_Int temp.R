@@ -4,15 +4,19 @@
 library(dplyr)
 library(lubridate)
 library(ggplot2)
+library(tidyr)
 
 #0. Quitar grados hora
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>% select(-grados_hora)
 
-# --- 1. Crear columna de fecha ---
+#1. Quitar las entradas del año 2021 (nos quedamos solo con 2022, verano extremo)
+#Se deja: Año 2022 (Junio, Julio y Agosto)
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
-  mutate(date = make_date(year, month, day))
+  filter(year != 2021)
 
-# --- 2. Definir las franjas horarias y sus pesos ---
+#=========================================================================================================
+
+#2. Definir las franjas horarias y sus pesos
 franjas <- tibble(
   hour = 0:23,
   franja = case_when(
@@ -32,19 +36,25 @@ franjas <- tibble(
   )
 )
 
-# --- 3. Asignar franja a cada observación horaria ---
-Vivtodas_verano_horario2 <- Vivtodas_verano_horario %>%
+#2. Crear columna de fecha
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
+  mutate(date = make_date(year, month, day))
+
+#3. Asignar franja a cada observación horaria
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   left_join(franjas, by = "hour")
 
-# --- 4. Calcular temperatura media por franja ---
-Vivtodas_franja_mean <- Vivtodas_verano_horario2 %>%
+#===============================================================================================
+
+#4. Calcular temperatura media por franja
+T_franja_mean <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date, franja, peso) %>%
   summarise(
     T_mean_franja = mean(Int_T, na.rm = TRUE),
     .groups = "drop"
   )
 
-# --- 5. Calcular temperatura ponderada diaria (según los pesos) ---
+#5. Calcular temperatura ponderada diaria
 T_ponderada_diaria <- Vivtodas_franja_mean %>%
   group_by(dwell_numb, date) %>%
   summarise(
@@ -52,24 +62,28 @@ T_ponderada_diaria <- Vivtodas_franja_mean %>%
     .groups = "drop"
   )
 
-# --- 6. Calcular medias diarias de las variables exteriores ---
+#================================================================================================
+
+#6. Calcular medias diarias de las variables exteriores y Join de la Tponderada a la base de datos con medias diarias
 Vivtodas_diario <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date) %>%
   summarise(
     Ext_T_mean = mean(Ext_T, na.rm = TRUE),
     Ext_RAD_mean = mean(Ext_RAD, na.rm = TRUE),
+    Int_T_mean = mean(Int_T, na.rm = TRUE),
     .groups = "drop"
   ) %>%
+ 
   left_join(T_ponderada_diaria, by = c("dwell_numb", "date")) %>%
   arrange(dwell_numb, date)
 
-# --- 7. Crear retardos (lags) de 1 a 9 días ---
-Vivtodas_diario_lags <- Vivtodas_diario %>%
+#7. Crear lags de 9 días
+Vivtodas_diario <- Vivtodas_diario %>%
   group_by(dwell_numb) %>%
   arrange(date) %>%
   mutate(
     across(
-      c(Ext_T_mean, T_ponderada),
+      c(Ext_T_mean, T_ponderada, Int_T_mean),
       list(
         lag1 = ~lag(., 1), lag2 = ~lag(., 2), lag3 = ~lag(., 3),
         lag4 = ~lag(., 4), lag5 = ~lag(., 5), lag6 = ~lag(., 6),
@@ -81,13 +95,22 @@ Vivtodas_diario_lags <- Vivtodas_diario %>%
   ) %>%
   ungroup()
 
-# --- 8. Unir las medias de franja con las variables predictoras ---
-modelo_base <- Vivtodas_franja_mean %>%
-  left_join(Vivtodas_diario_lags, by = c("dwell_numb", "date")) %>%
-  filter(!is.na(Ext_T_mean_lag9), !is.na(T_ponderada_lag9))
+Vivtodas_diario <- Vivtodas_diario %>%
+  drop_na()
 
-# --- 9. Ajustar modelo lineal global ---
-modelo <- lm(
+#====================================================================================================
+
+#8. Unir las medias de franja (franjas) con las variables predictoras (diarias)
+base_final <- T_franja_mean %>%
+  left_join(Vivtodas_diario, by = c("dwell_numb", "date")) %>%
+  filter(!is.na(Ext_T_mean_lag9), !is.na(T_ponderada_lag9), !is.na(Int_T_mean_lag9))
+
+#====================================================================================================
+#MLR
+#====================================================================================================
+
+#9. MLR (con exterior y temperatura ponderada)
+modelo_1 <- lm(
   T_mean_franja ~ Ext_T_mean +
     Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
     Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
@@ -96,19 +119,36 @@ modelo <- lm(
     T_ponderada_lag4 + T_ponderada_lag5 + T_ponderada_lag6 +
     T_ponderada_lag7 + T_ponderada_lag8 + T_ponderada_lag9 +
     Ext_RAD_mean,
-  data = modelo_base
+  data = base_final
 )
 
-# --- 10. Ver resultados ---
-summary(modelo)
+summary(modelo_1)
+
+#10. MLR (con exterior y temperatura interior)
+modelo_2 <- lm(
+  T_mean_franja ~ Ext_T_mean +
+    Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
+    Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
+    Ext_T_mean_lag7 + Ext_T_mean_lag8 + Ext_T_mean_lag9 +
+    Int_T_mean_lag1 + Int_T_mean_lag2 + Int_T_mean_lag3 +
+    Int_T_mean_lag4 + Int_T_mean_lag5 + Int_T_mean_lag6 +
+    Int_T_mean_lag7 + Int_T_mean_lag8 + Int_T_mean_lag9 +
+    Ext_RAD_mean,
+  data = base_final
+)
+
+summary(modelo_2)
 
 
-
-#========================
+#====================================================================================================
 #GRÁFICOS
-#========================
+#====================================================================================================
 
-#1. Observado vs Predicho ======================================================
+#0. Importar librerias
+library(Metrics)
+
+
+#1. Observado vs Predicho
 # Añadir predicciones al dataframe
 modelo_base <- modelo_base %>%
   mutate(T_predicha = predict(modelo))
@@ -126,7 +166,6 @@ abline(0, 1, col = "red", lwd = 2)  # línea 1:1
 #========================
 #CALCULAR EL DESEMPEÑO PARA CADA FRANJA
 #========================
-library(Metrics)  # para rmse y mae
 
 # Crear columna de residuo
 modelo_base <- modelo_base %>%
