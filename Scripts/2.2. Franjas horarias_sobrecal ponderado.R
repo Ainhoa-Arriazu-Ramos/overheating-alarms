@@ -1,14 +1,31 @@
 #Importar base de datos: Vivtodas_verano_horario==========================================================
 
-#Importar librerias
+#Cargar librerías
 library(dplyr)
 library(lubridate)
+library(ggplot2)
+library(tidyr)
 
+#1. Limpieza inicial======================================================================================
 
-#0. Quitar grados hora
+#Quitar grados hora
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>% select(-grados_hora)
 
-#1. Definiciones de franjas
+#Quitar las entradas del año 2021 (nos quedamos solo con 2022, verano extremo)
+#Se deja: Año 2022 (Junio, Julio y Agosto)
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
+  filter(year != 2021)
+
+#Crear columna de fecha
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
+  mutate(date = make_date(year, month, day))
+
+
+#===============================================================================================================
+#DESARROLLO: calcular si la temperatura de cada franja supera los limites determinados (fijos o adaptativos)
+#===============================================================================================================
+
+#1. Definir las franjas horarias, sus pesos y tipo de límite ===============================================
 franjas <- tibble(
   hour = 0:23,
   franja = case_when(
@@ -20,45 +37,43 @@ franjas <- tibble(
     hour %in% 20:23 ~ "Noche_20_23"
   ),
   peso = case_when(
-    hour %in% 0:7   ~ 3,     # 0-7 (dos bloques noche 0-3 y 4-7), peso 3
+    hour %in% 0:7   ~ 3,     # noches
     hour %in% 8:11  ~ 1,
     hour %in% 12:15 ~ 2,
     hour %in% 16:19 ~ 2,
     hour %in% 20:23 ~ 1.5
   ),
-  tipo_umbral = case_when(
-    hour %in% c(0:7, 20:23) ~ "fijo",         # nocturnas -> fijo 26
-    TRUE                    ~ "adaptativo"    # diurnas -> adaptativo
+  limite = case_when(
+    hour %in% 0:3   ~ "fijo",
+    hour %in% 4:7   ~ "fijo",
+    hour %in% 20:23 ~ "fijo",
+    TRUE             ~ "adaptativo"  # resto de franjas
   )
 )
 
-
-#2. Añadir columna date y asociar franja a cada fila horaria
-Vivtodas_verano_horario2 <- Vivtodas_verano_horario %>%
-  mutate(date = make_date(year, month, day)) %>%
+#Asignar franja a cada observación horaria
+Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   left_join(franjas, by = "hour")
 
 
-
-#2. Calcular la media por franja (media de Int_T sobre las horas de cada franja)
-#      por vivienda y por día
-Vivtodas_franja_mean <- Vivtodas_verano_horario2 %>%
-  group_by(dwell_numb, date, franja, peso, tipo_umbral) %>%
+#2. Crear dataset con medias por franja y por vivienda===========================================================
+T_franja_mean <- Vivtodas_verano_horario %>%
+  group_by(dwell_numb, date, franja, limite) %>%
   summarise(
-    T_mean_franja = mean(Int_T, na.rm = TRUE),
+    across(where(is.numeric), mean, na.rm = TRUE),  # hace media de todas las variables numéricas
     .groups = "drop"
   )
 
 
+#3. Crear limite adaptativo diario===========================================================
 
-#3. Calcular medias diarias externas por vivienda para calcular limite adaptativo
-Vivtodas_diario_media <- Vivtodas_verano_horario2 %>%
+Vivtodas_diario <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date) %>%
   summarise(
     Ext_T_mean = mean(Ext_T, na.rm = TRUE),     # media diaria exterior (por vivienda)
-    Int_T_mean = mean(Int_T, na.rm = TRUE),     # opcional
     .groups = "drop"
   ) %>%
+  
   arrange(dwell_numb, date) %>%
   group_by(dwell_numb) %>%
   mutate(
@@ -71,53 +86,44 @@ Vivtodas_diario_media <- Vivtodas_verano_horario2 %>%
   ungroup() %>%
   filter(!is.na(limiteadap))   # Eliminamos las filas de los primeros días sin info suficiente
 
+Vivtodas_diario <- Vivtodas_diario %>%
+  mutate(limite = "adaptativo")
 
 
-# 4. Unir la información de franja (media) con el limite adaptativo diario por vivienda ---
-# Resultado intermedio: por cada dwell_numb + date + franja tenemos la T_mean_franja
-# y además el limiteadap (por vivienda+date).
-final_umbral_franja <- Vivtodas_franja_mean %>%
+
+#4. Asignar limites a las franjas ===========================================================
+
+T_franja_mean_limit <- T_franja_mean %>%
   left_join(
-    Vivtodas_diario_media %>% select(dwell_numb, date, limiteadap),
+    Vivtodas_diario %>% select(dwell_numb, date, limiteadap),
     by = c("dwell_numb", "date")
   ) %>%
   mutate(
-    valor_umbral = if_else(tipo_umbral == "fijo", 26, limiteadap)
+    limite_tipo = case_when(
+      franja %in% c("Noche_0_3", "Noche_4_7", "Noche_20_23") ~ "fijo",
+      TRUE ~ "adaptativo"
+    ),
+    limite_valor = case_when(
+      limite_tipo == "fijo"       ~ 26,
+      limite_tipo == "adaptativo" ~ limiteadap
+    )
   ) %>%
-  # seleccionar sólo las columnas necesarias
-  select(dwell_numb, date, franja, peso, tipo_umbral, valor_umbral, T_mean_franja) %>%
-# eliminar los días 21/06, 22/06 y 23/06
-  filter(!date %in% as.Date(c("2021-06-21", "2021-06-22", "2021-06-23")))
+  select(-limiteadap)  # eliminar columna temporal
+
+  T_franja_mean_limit <- T_franja_mean_limit %>%
+  select(-hour)
+  
+  T_franja_mean_limit <- T_franja_mean_limit %>% drop_na()
 
 
+  
+#5. Calcular si la temperatura supera el límite en cada franja ===========================================================
+  T_franja_mean_limit <- T_franja_mean_limit %>%
+    mutate(
+      deltaT = limite_valor - Int_T,
+      alarma = if_else(deltaT < 0, 1, 0)
+    )
 
-#5. Superación umbral
-final_umbral_franja <- final_umbral_franja %>%
-  mutate(
-    diferencia = valor_umbral - T_mean_franja,        # diferencia entre umbral y temperatura media
-    supera = if_else(T_mean_franja > valor_umbral, 1, 0)  # 1 si se supera, 0 si no
-  )
-
-
-
-#6. Calcular temperatura ponderada diaria por vivienda 
-# Usamos T_mean_franja y pesos para obtener T_ponderada diaria
-# También calculamos si el día supera algún umbral (sobrecalentamiento)
-
-final_diario <- final_umbral_franja %>%
-  group_by(dwell_numb, date) %>%
-  summarise(
-    T_ponderada = sum(T_mean_franja * peso) / sum(peso),    # temperatura ponderada diaria
-    sobrecalentamiento_dia = if_else(any(supera == 1), 1, 0),           # 1 si alguna franja supera su umbral
-    .groups = "drop"
-  )
-
-#Para ver cuántos 0 y 1 hay en una columna:
-table(final_diario$sobrecalentamiento_dia)
-
-
-
-
-
-
-
+  T_franja_mean_limit %>%
+    count(alarma) #Está bastante balanceado
+  

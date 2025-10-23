@@ -5,8 +5,9 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(tidyr)
+library(Metrics)
 
-#1. LIimpieza inicialL======================================================================================
+#1. Limpieza inicialL======================================================================================
 
 #Quitar grados hora
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>% select(-grados_hora)
@@ -205,7 +206,6 @@ ggplot(ejemplo, aes(x = date)) +
 
 
 #Métricas cuantitativas: R², RMSE, MAE ======================================================================
-library(Metrics)
 
 R2 <- summary(modelo)$r.squared
 RMSE <- rmse(base_final$T_mean_franja, base_final$T_pred)
