@@ -227,8 +227,95 @@ ggplot(sobrecalentamiento_diario_final, aes(x = factor(dwell_numb), fill = facto
 #===============================================================================================================
 #PREDICCIÓN
 #===============================================================================================================
+# Carga de librerías
+install.packages("tidyverse")
+library(tidyverse)
+library(caret)
+library(nnet)
+library(pROC)
+
+#1. crear lags=============================================================================================
+# Crear las variables retardadas por vivienda
+sobrecalentamiento_diario_final <- sobrecalentamiento_diario_final %>%
+  arrange(dwell_numb, date) %>%    # Orden correcto
+  group_by(dwell_numb) %>%
+  mutate(
+    across(
+      c(Ext_T, Int_T_ponderada),
+      list(
+        lag1 = ~lag(., 1),
+        lag2 = ~lag(., 2),
+        lag3 = ~lag(., 3),
+        lag4 = ~lag(., 4),
+        lag5 = ~lag(., 5),
+        lag6 = ~lag(., 6),
+        lag7 = ~lag(., 7),
+        lag8 = ~lag(., 8),
+        lag9 = ~lag(., 9)
+      ),
+      .names = "{.col}_{.fn}"
+    )
+  ) %>%
+  ungroup()
+#Eliminar los dias con NA
+sobrecalentamiento_diario_final <- sobrecalentamiento_diario_final %>%
+  filter(!is.na(Ext_T_lag9), !is.na(Int_T_ponderada_lag9))
+
+
+#2. Dividir dataset (respetando viviendas)=============================================================================================
+set.seed(123)
+
+# Seleccionamos el 70% de las viviendas para entrenamiento
+dwell_train <- sample(unique(sobrecalentamiento_diario_final$dwell_numb),
+                      size = 0.7 * length(unique(sobrecalentamiento_diario_final$dwell_numb)))
+# Creamos datasets
+train_data <- sobrecalentamiento_diario_final %>%
+  filter(dwell_numb %in% dwell_train)
+
+test_data <- sobrecalentamiento_diario_final %>%
+  filter(!dwell_numb %in% dwell_train)
+
+
+#3. Modelos predictivos=============================================================================================
+
+#3.1. Modelo binario
+modelo_bin <- glm(alarma ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderada +
+                    Ext_T_lag1 + Ext_T_lag2 + Ext_T_lag3 + Ext_T_lag4 + Ext_T_lag5 +
+                    Ext_T_lag6 + Ext_T_lag7 + Ext_T_lag8 + Ext_T_lag9 +
+                    Int_T_ponderada_lag1 + Int_T_ponderada_lag2 + Int_T_ponderada_lag3 +
+                    Int_T_ponderada_lag4 + Int_T_ponderada_lag5 + Int_T_ponderada_lag6 +
+                    Int_T_ponderada_lag7 + Int_T_ponderada_lag8 + Int_T_ponderada_lag9,
+                  data = train_data, family = binomial)
+
+
+#3.2. Modelo multinimial
+library(nnet)
+
+modelo_multi <- multinom(alarma_tipo ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderada +
+                           Ext_T_lag1 + Ext_T_lag2 + Ext_T_lag3 + Ext_T_lag4 + Ext_T_lag5 +
+                           Ext_T_lag6 + Ext_T_lag7 + Ext_T_lag8 + Ext_T_lag9 +
+                           Int_T_ponderada_lag1 + Int_T_ponderada_lag2 + Int_T_ponderada_lag3 +
+                           Int_T_ponderada_lag4 + Int_T_ponderada_lag5 + Int_T_ponderada_lag6 +
+                           Int_T_ponderada_lag7 + Int_T_ponderada_lag8 + Int_T_ponderada_lag9,
+                         data = train_data)
+
+
+#4. Evaluación de los modelos =============================================================================================
+
+
+
+
+
   
-  
+
+
+
+
+
+
+
+
+
   
 
   
