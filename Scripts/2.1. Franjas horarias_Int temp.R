@@ -1,35 +1,27 @@
-#Importar base de datos: Vivtodas_verano_horario==========================================================
+# Importar base de datos: Vivtodas_verano_horario
 
-#Cargar librerías
+# =====================================================================
+# IMPORTACIÓN Y LIBRERÍAS
+# =====================================================================
+
+# Cargar librerías
 library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(tidyr)
 library(Metrics)
 
-#1. Limpieza inicialL======================================================================================
-
-#Quitar grados hora
-Vivtodas_verano_horario <- Vivtodas_verano_horario %>% select(-grados_hora)
-
-#Quitar las entradas del año 2021 (nos quedamos solo con 2022, verano extremo)
-#Se deja: Año 2022 (Junio, Julio y Agosto)
+# Limpieza inicial
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
-  filter(year != 2021)
-
-#Crear columna de fecha
-Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
-  mutate(date = make_date(year, month, day))
+  select(-grados_hora) %>%                 # Eliminar variable no necesaria
+  filter(year == 2022) %>%                 # Mantener solo verano extremo 2022
+  mutate(date = make_date(year, month, day))  # Crear variable de fecha
 
 
+# =====================================================================
+# DEFINICIÓN DE FRANJAS HORARIAS
+# =====================================================================
 
-
-
-#===============================================================================================================
-#DESARROLLO: Predicción de la temperatura media de cada franja en base a temperaturas diarias de días anteriores
-#===============================================================================================================
-
-#2. Definir las franjas horarias y sus pesos===============================================================
 franjas <- tibble(
   hour = 0:23,
   franja = case_when(
@@ -41,7 +33,7 @@ franjas <- tibble(
     hour %in% 20:23 ~ "Noche_20_23"
   ),
   peso = case_when(
-    hour %in% 0:7   ~ 3,     # noches
+    hour %in% 0:7   ~ 3,     # Noches
     hour %in% 8:11  ~ 1,
     hour %in% 12:15 ~ 2,
     hour %in% 16:19 ~ 2,
@@ -49,26 +41,23 @@ franjas <- tibble(
   )
 )
 
-#Asignar franja a cada observación horaria
+# Asignar franja a cada observación
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   left_join(franjas, by = "hour")
 
 
-
-
-#3. Variables diarias y lags ===============================================================================================
+# =====================================================================
+# VARIABLES DIARIAS Y LAGS
+# =====================================================================
 
 Vivtodas_diario <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date) %>%
   summarise(
-    Ext_T_mean = mean(Ext_T, na.rm = TRUE),
+    Ext_T_mean  = mean(Ext_T, na.rm = TRUE),
     Ext_RAD_mean = mean(Ext_RAD, na.rm = TRUE),
-    Int_T_mean = mean(Int_T, na.rm = TRUE),
+    Int_T_mean  = mean(Int_T, na.rm = TRUE),
     .groups = "drop"
-  )
-
-# Crear lags de hasta 9 días
-Vivtodas_diario <- Vivtodas_diario %>%
+  ) %>%
   group_by(dwell_numb) %>%
   arrange(date) %>%
   mutate(
@@ -80,15 +69,15 @@ Vivtodas_diario <- Vivtodas_diario %>%
         lag7 = ~lag(., 7), lag8 = ~lag(., 8), lag9 = ~lag(., 9)
       ),
       .names = "{.col}_{.fn}"
-    ),
-    Ext_RAD_mean_lag1 = lag(Ext_RAD_mean, 1)
+    )
   ) %>%
   ungroup() %>%
   drop_na()
 
 
-
-#4. Calcular temperatura media por franja================================================================================================
+# =====================================================================
+# TEMPERATURA MEDIA POR FRANJA HORARIA
+# =====================================================================
 
 T_franja_mean <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date, franja) %>%
@@ -99,26 +88,33 @@ T_franja_mean <- Vivtodas_verano_horario %>%
   mutate(
     tipo_umbral = if_else(
       franja %in% c("Noche_0_3", "Noche_4_7", "Noche_20_23"),
-      "fijo",
-      "adaptativo"
+      "fijo", "adaptativo"
     )
   )
 
 
-
-
-#5. Unión de tablas (franja + variables predictoras)================================================================================================
+# =====================================================================
+# UNIÓN DE TABLAS (franjas + variables predictoras)
+# =====================================================================
 
 base_final <- T_franja_mean %>%
   left_join(Vivtodas_diario, by = c("dwell_numb", "date")) %>%
   filter(!is.na(Ext_T_mean_lag9), !is.na(Int_T_mean_lag9))
 
 
+# =====================================================================
+# MODELO DE REGRESIÓN LINEAL MÚLTIPLE (MLR)
+# =====================================================================
 
+# División del dataset por viviendas
+train_viviendas <- c(1, 3, 5, 6, 7, 9, 10, 12, 13)
+test_viviendas  <- c(2, 4, 8, 11)
 
+train_data <- base_final %>% filter(dwell_numb %in% train_viviendas)
+test_data  <- base_final %>% filter(dwell_numb %in% test_viviendas)
 
-#6.Modelo de regresión lineal (MRL)====================================================================================================
-modelo <- lm(
+# Entrenamiento del modelo
+modelo_mlr <- lm(
   T_mean_franja ~ Ext_T_mean +
     Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
     Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
@@ -127,29 +123,30 @@ modelo <- lm(
     Int_T_mean_lag4 + Int_T_mean_lag5 + Int_T_mean_lag6 +
     Int_T_mean_lag7 + Int_T_mean_lag8 + Int_T_mean_lag9 +
     Ext_RAD_mean,
-  data = base_final
+  data = train_data
 )
 
-summary(modelo)
+summary(modelo_mlr)
+
+# Predicciones sobre el conjunto de test
+test_data <- test_data %>%
+  mutate(pred_T_mean_franja = predict(modelo_mlr, newdata = test_data))
 
 
+# =====================================================================
+# ANÁLISIS Y VISUALIZACIÓN DE RESULTADOS
+# =====================================================================
 
+# 1. Predicciones vs valores reales (todas las franjas en conjunto)
+base_final$T_pred <- predict(modelo_mlr, newdata = base_final)
 
-
-
-#====================================================================================================
-#ANÁLISIS
-#====================================================================================================
-
-#1. Predicciones vs valores reales===================================================================
-
-# Predicciones del modelo
-base_final$T_pred <- predict(modelo, newdata = base_final)
-
-# Gráfico comparativo
 ggplot(base_final, aes(x = T_mean_franja, y = T_pred)) +
-  geom_point(alpha = 0.5, color = "steelblue") +
-  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  geom_point(alpha = 0.5, color = "black") +
+  
+   geom_abline(slope = 1, intercept = 0, color = "green", linetype = "dashed") +
+  
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
+  
   labs(
     title = "Temperatura real vs predicha por el modelo",
     x = "Temperatura real (°C)",
@@ -158,14 +155,31 @@ ggplot(base_final, aes(x = T_mean_franja, y = T_pred)) +
   theme_minimal()
 
 
+# 1. Predicciones vs valores reales (coloreadas por franjas)
+base_final$T_pred <- predict(modelo_mlr, newdata = base_final)
 
-#2. Errores de predicción (residuos)=================================================================
+ggplot(base_final, aes(x = T_mean_franja, y = T_pred, color = franja)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "solid") +
+  labs(
+    title = "Temperatura real vs predicha por el modelo",
+    x = "Temperatura real (°C)",
+    y = "Temperatura predicha (°C)",
+    color = "Franja horaria"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold", size = 14)
+  )
 
+
+# 2. Residuos del modelo
 base_final$resid <- base_final$T_mean_franja - base_final$T_pred
 
 ggplot(base_final, aes(x = T_pred, y = resid)) +
   geom_point(alpha = 0.5, color = "darkorange") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
   labs(
     title = "Residuos vs Temperatura predicha",
     x = "Temperatura predicha (°C)",
@@ -174,24 +188,26 @@ ggplot(base_final, aes(x = T_pred, y = resid)) +
   theme_minimal()
 
 
-
-#3. Desempeño del modelo por franja horaria =================================================================
-
+# 3. Desempeño por franja horaria
 ggplot(base_final, aes(x = T_mean_franja, y = T_pred, color = franja)) +
   geom_point(alpha = 0.5) +
+  
   geom_abline(slope = 1, intercept = 0, color = "black", linetype = "dashed") +
+  
+  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
+  
   facet_wrap(~franja) +
+  
   labs(
     title = "Temperatura real vs predicha por franja horaria",
     x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)"
+    y = "Temperatura predicha (°C)",
+    color = "Franja horaria"
   ) +
   theme_minimal()
 
 
-#4. Serie temporal comparando real vs predicho ===============================================================
-
-# Selecciona una vivienda de ejemplo
+# 4. Serie temporal (ejemplo de vivienda)
 ejemplo <- base_final %>% filter(dwell_numb == unique(dwell_numb)[1])
 
 ggplot(ejemplo, aes(x = date)) +
@@ -199,21 +215,16 @@ ggplot(ejemplo, aes(x = date)) +
   geom_line(aes(y = T_pred, color = "Predicha"), linetype = "dashed") +
   labs(
     title = "Serie temporal de temperatura (real vs predicha)",
-    x = "Fecha", y = "Temperatura (°C)"
+    x = "Fecha",
+    y = "Temperatura (°C)"
   ) +
   scale_color_manual(values = c("Real" = "black", "Predicha" = "red")) +
   theme_minimal()
 
 
-#Métricas cuantitativas: R², RMSE, MAE ======================================================================
-
-R2 <- summary(modelo)$r.squared
+# 5. Métricas de desempeño global
+R2   <- summary(modelo_mlr)$r.squared
 RMSE <- rmse(base_final$T_mean_franja, base_final$T_pred)
-MAE <- mae(base_final$T_mean_franja, base_final$T_pred)
+MAE  <- mae(base_final$T_mean_franja, base_final$T_pred)
 
 cat("R² =", round(R2, 3), "\nRMSE =", round(RMSE, 2), "\nMAE =", round(MAE, 2))
-
-
-
-
-
