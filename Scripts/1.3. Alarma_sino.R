@@ -75,9 +75,19 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 #MLR==========================================================================
 
 set.seed(123)
-split <- initial_split(Vivtodas_diario_media, prop = 0.7)  # 70% train, 30% test
-train_data <- training(split)
-test_data <- testing(split)
+
+# Dividimos el dataset según dwell_numb
+train_viviendas <- c(1, 3, 5, 6, 7, 9, 10, 12, 13)
+test_viviendas  <- c(2, 4, 8, 11)
+
+# Crear subconjuntos
+train_data <- Vivtodas_diario_media %>%
+  filter(dwell_numb %in% train_viviendas)
+
+test_data <- Vivtodas_diario_media %>%
+  filter(dwell_numb %in% test_viviendas)
+
+
 
 #Modelo de RLM con los datos de entrenamiento
 modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
@@ -121,6 +131,48 @@ ggplot(conf_mat, aes(x = Predicho, y = Real, fill = Freq)) +
     legend.text = element_text(size = 16)      # Números de la barra de colores
   )
 
+
+
+#============================================================
+#MÉTRICAS DE EVALUACIÓN DEL MODELO DE ALARMAS
+#============================================================
+
+# Crear matriz de confusión
+conf_mat <- table(Real = test_data$alarma_real, Predicho = test_data$alarma_test)
+
+# Extraer valores
+TN <- conf_mat[1,1]  # Verdaderos negativos
+FP <- conf_mat[1,2]  # Falsos positivos
+FN <- conf_mat[2,1]  # Falsos negativos
+TP <- conf_mat[2,2]  # Verdaderos positivos
+
+# Total de observaciones
+total <- TN + FP + FN + TP
+
+# Porcentajes de cada tipo de caso:
+casos <- data.frame(
+  Tipo = c("Verdaderos negativos", "Falsos positivos", "Falsos negativos", "Verdaderos positivos"),
+  Cantidad = c(TN, FP, FN, TP),
+  Porcentaje = round(100 * c(TN, FP, FN, TP) / total, 1)
+)
+print(casos)
+
+#=======================================================================================================
+
+# Calcular métricas
+accuracy  <- (TP + TN) / total
+recall    <- TP / (TP + FN)           # Sensibilidad o Tasa de verdaderos positivos
+specificity <- TN / (TN + FP)         # Especificidad o Tasa de verdaderos negativos
+precision <- TP / (TP + FP)           # Valor predictivo positivo
+f1_score  <- 2 * (precision * recall) / (precision + recall)
+
+# Mostrar resultados en porcentaje
+resultados <- data.frame(
+  Métrica = c("Accuracy", "Recall (Sensibilidad)", "Specificity", "Precision", "F1-score"),
+  Valor = round(100 * c(accuracy, recall, specificity, precision, f1_score), 1)
+)
+
+print(resultados)
 
 
 

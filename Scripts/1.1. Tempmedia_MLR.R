@@ -58,11 +58,11 @@ viviendas_train <- sample(
   size = 0.7 * length(unique(Vivtodas_diario_media$dwell_numb))
 )
 
-# Dividimos el dataset según dwell_numb
-train_data <- Vivtodas_diario_media %>%
+  # Dividimos el dataset según dwell_numb
+  train_data <- Vivtodas_diario_media %>%
   filter(dwell_numb %in% viviendas_train)
-
-test_data <- Vivtodas_diario_media %>%
+  
+  test_data <- Vivtodas_diario_media %>%
   filter(!dwell_numb %in% viviendas_train)
 
 #Modelo de RLM con los datos de entrenamiento
