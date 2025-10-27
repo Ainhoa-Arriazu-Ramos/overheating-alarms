@@ -74,8 +74,6 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 
 #MLR==========================================================================
 
-set.seed(123)
-
 # Dividimos el dataset según dwell_numb
 train_viviendas <- c(1, 3, 5, 6, 7, 9, 10, 12, 13)
 test_viviendas  <- c(2, 4, 8, 11)

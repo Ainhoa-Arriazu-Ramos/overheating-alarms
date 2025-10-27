@@ -50,20 +50,16 @@ Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
 
 
 #MLR==========================================================================
-set.seed(123)
+# Dividimos el dataset según dwell_numb
+train_viviendas <- c(1, 3, 5, 6, 7, 9, 10, 12, 13)
+test_viviendas  <- c(2, 4, 8, 11)
 
-# Seleccionamos el 70% de las viviendas
-viviendas_train <- sample(
-  unique(Vivtodas_diario_media$dwell_numb),
-  size = 0.7 * length(unique(Vivtodas_diario_media$dwell_numb))
-)
+# Crear subconjuntos
+train_data <- Vivtodas_diario_media %>%
+  filter(dwell_numb %in% train_viviendas)
 
-  # Dividimos el dataset según dwell_numb
-  train_data <- Vivtodas_diario_media %>%
-  filter(dwell_numb %in% viviendas_train)
-  
-  test_data <- Vivtodas_diario_media %>%
-  filter(!dwell_numb %in% viviendas_train)
+test_data <- Vivtodas_diario_media %>%
+  filter(dwell_numb %in% test_viviendas)
 
 #Modelo de RLM con los datos de entrenamiento
 modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
