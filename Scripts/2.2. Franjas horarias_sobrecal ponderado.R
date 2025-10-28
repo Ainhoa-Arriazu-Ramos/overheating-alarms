@@ -263,23 +263,23 @@ sobrecalentamiento_diario_final <- sobrecalentamiento_diario_final %>%
 
 
 #2. Dividir dataset (respetando viviendas)=============================================================================================
-set.seed(123)
+# División del dataset por viviendas
+train_viviendas <- c(1, 3, 5, 6, 7, 9, 10, 12, 13)
+test_viviendas  <- c(2, 4, 8, 11)
 
-# Seleccionamos el 70% de las viviendas para entrenamiento
-dwell_train <- sample(unique(sobrecalentamiento_diario_final$dwell_numb),
-                      size = 0.7 * length(unique(sobrecalentamiento_diario_final$dwell_numb)))
-# Creamos datasets
-train_data <- sobrecalentamiento_diario_final %>%
-  filter(dwell_numb %in% dwell_train)
+train_data <- sobrecalentamiento_diario_final %>% 
+  filter(dwell_numb %in% train_viviendas)
 
-test_data <- sobrecalentamiento_diario_final %>%
-  filter(!dwell_numb %in% dwell_train)
+test_data <- sobrecalentamiento_diario_final %>% 
+  filter(dwell_numb %in% test_viviendas)
 
 
-#3. Modelos predictivos=============================================================================================
+#=================================================
+#3. Modelos predictivos
+#=================================================
 
-#3.1. Modelo binario
-modelo_bin <- glm(alarma ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderada +
+#3.1. Modelo binario===================================================================================
+modelo_binario <- glm(alarma ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderada +
                     Ext_T_lag1 + Ext_T_lag2 + Ext_T_lag3 + Ext_T_lag4 + Ext_T_lag5 +
                     Ext_T_lag6 + Ext_T_lag7 + Ext_T_lag8 + Ext_T_lag9 +
                     Int_T_ponderada_lag1 + Int_T_ponderada_lag2 + Int_T_ponderada_lag3 +
@@ -287,9 +287,42 @@ modelo_bin <- glm(alarma ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderada +
                     Int_T_ponderada_lag7 + Int_T_ponderada_lag8 + Int_T_ponderada_lag9,
                   data = train_data, family = binomial)
 
+summary(modelo_binario)
 
-#3.2. Modelo multinimial
+# Predicción sobre test
+test_data$pred_prob <- predict(modelo_binario, newdata = test_data, type = "response")
+test_data$alarma_pred <- ifelse(test_data$pred_prob > 0.5, 1, 0)  # umbral 0.5
+
+# Matriz de confusión
+confusionMatrix(as.factor(test_data$alarma_pred),
+                as.factor(test_data$alarma),
+                positive = "1")
+
+# Crear la matriz de confusión tipo heatmap===================
+cm <- confusionMatrix(as.factor(test_data$alarma_pred),
+                      as.factor(test_data$alarma),
+                      positive = "1")
+
+# Convertir a dataframe para graficar
+cm_table <- as.data.frame(cm$table)
+
+# Crear el heatmap
+ggplot(cm_table, aes(x = Prediction, y = Reference, fill = Freq)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Freq), size = 6, fontface = "bold", color = "white") +
+  scale_fill_gradient(low = "#56B1F7", high = "#132B43") +
+  labs(title = "Matriz de confusión – Modelo Binario (alarma sí/no)",
+       x = "Predicción", y = "Valor real") +
+  theme_minimal(base_size = 14) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+
+#3.2. Modelo multinomial================================================================================
 library(nnet)
+
+# Asegurar tipo factor
+train_data$alarma_tipo <- as.factor(train_data$alarma_tipo)
+test_data$alarma_tipo  <- as.factor(test_data$alarma_tipo)
 
 modelo_multi <- multinom(alarma_tipo ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderada +
                            Ext_T_lag1 + Ext_T_lag2 + Ext_T_lag3 + Ext_T_lag4 + Ext_T_lag5 +
@@ -298,6 +331,31 @@ modelo_multi <- multinom(alarma_tipo ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_
                            Int_T_ponderada_lag4 + Int_T_ponderada_lag5 + Int_T_ponderada_lag6 +
                            Int_T_ponderada_lag7 + Int_T_ponderada_lag8 + Int_T_ponderada_lag9,
                          data = train_data)
+
+# Predicción de clases
+test_data$alarma_tipo_pred <- predict(modelo_multi, newdata = test_data)
+
+# Matriz de confusión==========================
+table(Real = test_data$alarma_tipo, Predicho = test_data$alarma_tipo_pred)
+
+# Crear la matriz de confusión como dataframe
+cm_multi <- table(Real = test_data$alarma_tipo, Predicho = test_data$alarma_tipo_pred)
+cm_df <- as.data.frame(cm_multi)
+
+# Añadir columna indicando si la predicción es correcta
+cm_df <- cm_df %>%
+  mutate(Correcta = ifelse(Real == Predicho, "Sí", "No"))
+
+# Crear el heatmap
+ggplot(cm_df, aes(x = Predicho, y = Real, fill = Correcta, alpha = Freq)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = Freq), size = 5, fontface = "bold") +
+  scale_fill_manual(values = c("Sí" = "green", "No" = "red")) +
+  scale_alpha(range = c(0.4, 1)) +
+  labs(title = "Matriz de confusión – Modelo Multinomial (tipo de alarma)",
+       x = "Predicción", y = "Valor real") +
+  theme_minimal(base_size = 14) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
 
 #4. Evaluación de los modelos =============================================================================================
