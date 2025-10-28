@@ -82,7 +82,7 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 #====================================================================================================
 
 
-#MLR==========================================================================
+#ARX==========================================================================
 # Dividimos el dataset según dwell_numb
 train_viviendas <- c(1, 3, 5, 6, 7, 9, 10, 12, 13)
 test_viviendas  <- c(2, 4, 8, 11)
@@ -94,19 +94,19 @@ train_data <- Vivtodas_diario_media %>%
 test_data <- Vivtodas_diario_media %>%
   filter(dwell_numb %in% test_viviendas)
 
-#Modelo de RLM con los datos de entrenamiento
-modelo_rlm <- lm(Int_T ~ Ext_T + Ext_RAD + 
+#Modelo de ARX con los datos de entrenamiento
+modelo_arx <- lm(Int_T ~ Ext_T + Ext_RAD + 
                    Ext_T_1 + Ext_T_2 + Ext_T_3 + Ext_T_4 + Ext_T_5 + Ext_T_6 + Ext_T_7 + Ext_T_8 + Ext_T_9
                  + Int_T_1 + Int_T_2 + Int_T_3 + Int_T_4 + Int_T_5 + Int_T_6 + Int_T_7 + Int_T_8 + Int_T_9, 
                  data = train_data)
 
-summary(modelo_rlm)
+summary(modelo_arx)
 
 
 # Predecir temperatura interior en test
 test_data <- test_data %>%
   mutate(
-    Int_T_pred = predict(modelo_rlm, newdata = test_data),
+    Int_T_pred = predict(modelo_arx, newdata = test_data),
     # Aquí queda tu variable alarma_test
     alarma_test = ifelse(trm > 30 | Int_T_pred > limiteadap, 1, 0),
     )
