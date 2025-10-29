@@ -84,7 +84,7 @@ base_final <- Vivtodas_franja_lags %>%
 # =====================================================================
 train_viviendas <- c(1,3,5,6,7,9,10,12,13)
 test_viviendas  <- c(2,4,8,11)
-
+ 
 train_data <- base_final %>% filter(dwell_numb %in% train_viviendas)
 test_data  <- base_final %>% filter(dwell_numb %in% test_viviendas)
 
@@ -126,3 +126,15 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
     axis.text  = element_text(size = 12),
     plot.title = element_text(size = 15, hjust = 0.5)
   )
+
+# =====================================================================
+# 10. Métricas de desempeño global
+# =====================================================================
+
+R2 <- summary(modelo_franja)$r.squared
+RMSE <- rmse(test_data$Int_T, test_data$Int_T_pred)
+MAE  <- mae(test_data$Int_T, test_data$Int_T_pred)
+
+cat("R² (train) =", round(R2, 3), 
+    "\nRMSE (test) =", round(RMSE, 2), 
+    "\nMAE (test) =", round(MAE, 2))
