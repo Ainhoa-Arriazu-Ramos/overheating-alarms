@@ -17,7 +17,7 @@ library(Metrics)
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   select(-grados_hora) %>%                 # Eliminar variable no necesaria
   filter(year == 2022) %>%                 # Mantener solo verano extremo 2022
-  mutate(date = make_date(year, month, day))  # Crear variable de fecha
+  mutate(date = make_date(year, month, day))  # Crear variable de date
 
 
 # =====================================================================
@@ -73,25 +73,38 @@ T_franja_mean <- Vivtodas_verano_horario %>%
 Vivtodas_diario <- Vivtodas_verano_horario %>%
   group_by(dwell_numb, date) %>%
   summarise(
-    Ext_T_mean  = mean(Ext_T, na.rm = TRUE),
-    Ext_RAD_mean = mean(Ext_RAD, na.rm = TRUE),
-    Int_T_mean  = mean(Int_T, na.rm = TRUE),
+    Ext_T_mean  = mean(Ext_T, na.rm = TRUE),       # Media diaria exterior
+    Ext_RAD_mean = mean(Ext_RAD, na.rm = TRUE),    # Media diaria radiación
+    Int_T_mean  = mean(Int_T, na.rm = TRUE),       # Media diaria interior
     .groups = "drop"
   ) %>%
   group_by(dwell_numb) %>%
   arrange(date) %>%
   mutate(
-    across(
-      c(Ext_T_mean, Int_T_mean),
-      list(
-        lag1 = ~lag(., 1), lag2 = ~lag(., 2), lag3 = ~lag(., 3),
-        lag4 = ~lag(., 4), lag5 = ~lag(., 5), lag6 = ~lag(., 6),
-        lag7 = ~lag(., 7), lag8 = ~lag(., 8), lag9 = ~lag(., 9)
-      ),
-      .names = "{.col}_{.fn}"
-    )
+    # LAGS temperatura interior media
+    Int_T_mean_1 = if_else(as.integer(date - lag(date, 1)) == 1, lag(Int_T_mean, 1), NA_real_),
+    Int_T_mean_2 = if_else(as.integer(date - lag(date, 2)) == 2, lag(Int_T_mean, 2), NA_real_),
+    Int_T_mean_3 = if_else(as.integer(date - lag(date, 3)) == 3, lag(Int_T_mean, 3), NA_real_),
+    Int_T_mean_4 = if_else(as.integer(date - lag(date, 4)) == 4, lag(Int_T_mean, 4), NA_real_),
+    Int_T_mean_5 = if_else(as.integer(date - lag(date, 5)) == 5, lag(Int_T_mean, 5), NA_real_),
+    Int_T_mean_6 = if_else(as.integer(date - lag(date, 6)) == 6, lag(Int_T_mean, 6), NA_real_),
+    Int_T_mean_7 = if_else(as.integer(date - lag(date, 7)) == 7, lag(Int_T_mean, 7), NA_real_),
+    Int_T_mean_8 = if_else(as.integer(date - lag(date, 8)) == 8, lag(Int_T_mean, 8), NA_real_),
+    Int_T_mean_9 = if_else(as.integer(date - lag(date, 9)) == 9, lag(Int_T_mean, 9), NA_real_),
+    
+    # LAGS temperatura exterior media
+    Ext_T_mean_1 = if_else(as.integer(date - lag(date, 1)) == 1, lag(Ext_T_mean, 1), NA_real_),
+    Ext_T_mean_2 = if_else(as.integer(date - lag(date, 2)) == 2, lag(Ext_T_mean, 2), NA_real_),
+    Ext_T_mean_3 = if_else(as.integer(date - lag(date, 3)) == 3, lag(Ext_T_mean, 3), NA_real_),
+    Ext_T_mean_4 = if_else(as.integer(date - lag(date, 4)) == 4, lag(Ext_T_mean, 4), NA_real_),
+    Ext_T_mean_5 = if_else(as.integer(date - lag(date, 5)) == 5, lag(Ext_T_mean, 5), NA_real_),
+    Ext_T_mean_6 = if_else(as.integer(date - lag(date, 6)) == 6, lag(Ext_T_mean, 6), NA_real_),
+    Ext_T_mean_7 = if_else(as.integer(date - lag(date, 7)) == 7, lag(Ext_T_mean, 7), NA_real_),
+    Ext_T_mean_8 = if_else(as.integer(date - lag(date, 8)) == 8, lag(Ext_T_mean, 8), NA_real_),
+    Ext_T_mean_9 = if_else(as.integer(date - lag(date, 9)) == 9, lag(Ext_T_mean, 9), NA_real_)
   ) %>%
-  ungroup() 
+  ungroup()
+
 
 
 # =====================================================================
@@ -101,23 +114,26 @@ Vivtodas_diario <- Vivtodas_verano_horario %>%
 Vivtodas_diario_ponderada <- T_franja_mean %>%
   group_by(dwell_numb, date) %>%
   summarise(
-    Int_T_ponderada = sum(T_mean_franja * peso, na.rm = TRUE) / sum(peso, na.rm = TRUE),
+    Int_T_mean_ponderada = sum(T_mean_franja * peso, na.rm = TRUE) / sum(peso, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   group_by(dwell_numb) %>%
   arrange(date) %>%
   mutate(
-    across(
-      Int_T_ponderada,
-      list(
-        lag1 = ~lag(., 1), lag2 = ~lag(., 2), lag3 = ~lag(., 3),
-        lag4 = ~lag(., 4), lag5 = ~lag(., 5), lag6 = ~lag(., 6),
-        lag7 = ~lag(., 7), lag8 = ~lag(., 8), lag9 = ~lag(., 9)
-      ),
-      .names = "{.col}_{.fn}"
-    )
-  ) %>%
+    ## ---- LAGS INTERIOR PONDERADA ----
+    Int_T_pond_1 = if_else(date == lag(date, 1) + 1, lag(Int_T_mean_ponderada, 1), NA_real_),
+    Int_T_pond_2 = if_else(date == lag(date, 2) + 2, lag(Int_T_mean_ponderada, 2), NA_real_),
+    Int_T_pond_3 = if_else(date == lag(date, 3) + 3, lag(Int_T_mean_ponderada, 3), NA_real_),
+    Int_T_pond_4 = if_else(date == lag(date, 4) + 4, lag(Int_T_mean_ponderada, 4), NA_real_),
+    Int_T_pond_5 = if_else(date == lag(date, 5) + 5, lag(Int_T_mean_ponderada, 5), NA_real_),
+    Int_T_pond_6 = if_else(date == lag(date, 6) + 6, lag(Int_T_mean_ponderada, 6), NA_real_),
+    Int_T_pond_7 = if_else(date == lag(date, 7) + 7, lag(Int_T_mean_ponderada, 7), NA_real_),
+    Int_T_pond_8 = if_else(date == lag(date, 8) + 8, lag(Int_T_mean_ponderada, 8), NA_real_),
+    Int_T_pond_9 = if_else(date == lag(date, 9) + 9, lag(Int_T_mean_ponderada, 9), NA_real_),
+     ) %>%
   ungroup()
+
+
 
 
 # =====================================================================
@@ -125,15 +141,9 @@ Vivtodas_diario_ponderada <- T_franja_mean %>%
 # =====================================================================
 
 base_final <- T_franja_mean %>%
-  left_join(Vivtodas_diario, by = c("dwell_numb", "date")) %>%            # lags de Int_T_mean
-  left_join(Vivtodas_diario_ponderada, by = c("dwell_numb", "date")) %>%  # lags de Int_T_ponderada
-  filter(
-    !is.na(Ext_T_mean_lag9),
-    !is.na(Int_T_mean_lag9),
-    !is.na(Int_T_ponderada_lag9)
-  )
-
-
+  left_join(Vivtodas_diario,        by = c("dwell_numb", "date")) %>%     # lags Int_T_mean_mean
+  left_join(Vivtodas_diario_ponderada, by = c("dwell_numb", "date")) %>%  # lags Int_T_mean_ponderada
+  drop_na()   # <--- elimina filas con cualquier NA
 
 
 
@@ -159,15 +169,15 @@ test_viviendas  <- c(2, 4, 8, 11)
 train_data <- base_final %>% filter(dwell_numb %in% train_viviendas)
 test_data  <- base_final %>% filter(dwell_numb %in% test_viviendas)
 
-# Entrenamiento del modelo
+# ARX: Entrenamiento del modelo
 modelo_Tint_mean <- lm(
   T_mean_franja ~ Ext_T_mean +
-    Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
-    Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
-    Ext_T_mean_lag7 + Ext_T_mean_lag8 + Ext_T_mean_lag9 +
-    Int_T_mean_lag1 + Int_T_mean_lag2 + Int_T_mean_lag3 +
-    Int_T_mean_lag4 + Int_T_mean_lag5 + Int_T_mean_lag6 +
-    Int_T_mean_lag7 + Int_T_mean_lag8 + Int_T_mean_lag9 +
+    Ext_T_mean_1 + Ext_T_mean_2 + Ext_T_mean_3 +
+    Ext_T_mean_4 + Ext_T_mean_5 + Ext_T_mean_6 +
+    Ext_T_mean_7 + Ext_T_mean_8 + Ext_T_mean_9 +
+    Int_T_mean_1 + Int_T_mean_2 + Int_T_mean_3 +
+    Int_T_mean_4 + Int_T_mean_5 + Int_T_mean_6 +
+    Int_T_mean_7 + Int_T_mean_8 + Int_T_mean_9 +
     Ext_RAD_mean,
   data = train_data
 )
@@ -188,12 +198,12 @@ test_data <- test_data %>%
 # Entrenamiento del modelo usando la temperatura ponderada y sus lags
 modelo_Tint_ponderada <- lm(
   T_mean_franja ~ Ext_T_mean +
-    Ext_T_mean_lag1 + Ext_T_mean_lag2 + Ext_T_mean_lag3 +
-    Ext_T_mean_lag4 + Ext_T_mean_lag5 + Ext_T_mean_lag6 +
-    Ext_T_mean_lag7 + Ext_T_mean_lag8 + Ext_T_mean_lag9 +
-    Int_T_ponderada_lag1 + Int_T_ponderada_lag2 + Int_T_ponderada_lag3 +
-    Int_T_ponderada_lag4 + Int_T_ponderada_lag5 + Int_T_ponderada_lag6 +
-    Int_T_ponderada_lag7 + Int_T_ponderada_lag8 + Int_T_ponderada_lag9 +
+    Ext_T_mean_1 + Ext_T_mean_2 + Ext_T_mean_3 +
+    Ext_T_mean_4 + Ext_T_mean_5 + Ext_T_mean_6 +
+    Ext_T_mean_7 + Ext_T_mean_8 + Ext_T_mean_9 +
+    Int_T_pond_1 + Int_T_pond_2 + Int_T_pond_3 +
+    Int_T_pond_4 + Int_T_pond_5 + Int_T_pond_6 +
+    Int_T_pond_7 + Int_T_pond_8 + Int_T_pond_9 +
     Ext_RAD_mean,
   data = train_data
 )
@@ -221,74 +231,54 @@ test_data <- test_data %>%
 #==========================================
 
 #Con la predicción en base a la temperatura interior media==================================
+windowsFonts(Times = windowsFont("Times New Roman"))
 
 #1. 
 ggplot(test_data, aes(x = T_mean_franja, y = T_pred_mean)) +
-  geom_point(alpha = 0.5, color = "black") +
-  
-   geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
-  
-  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
-  
+  geom_point(color = "black", alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "#00BFFF", linetype = "solid") +
   labs(
-    title = "Temperatura real vs predicha por el modelo",
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)"
+    x = "Real Indoor Temperature (°C)",
+    y = "Predicted Indoor Temperature (°C)",
+    title = "Model Performance – Indoor Temperature Prediction"
   ) +
-  theme_minimal()
-
-
-# 2. Predicciones vs valores reales (coloreadas por franjas)
-ggplot(test_data, aes(x = T_mean_franja, y = T_pred_mean, color = franja)) +
-  geom_point(alpha = 0.6) +
-  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "solid") +
-  labs(
-    title = "Temperatura real vs predicha por el modelo",
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)",
-    color = "Franja horaria"
-  ) +
-  theme_minimal() +
+  coord_fixed(ratio = 1) +         # relación 1:1
+  xlim(20, 32) + ylim(20, 32) +    # límites iguales para comparación justa
+  theme_minimal(base_family = "Times") +
   theme(
-    legend.position = "right",
-    plot.title = element_text(face = "bold", size = 14)
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12),
+    plot.title = element_text(size = 15, hjust = 0.5)
   )
 
 
-# 3. Residuos del modelo
-test_data$resid <- test_data$T_mean_franja - test_data$T_pred_mean
-
-ggplot(test_data, aes(x = T_pred_mean, y = resid)) +
-  geom_point(alpha = 0.5, color = "darkorange") +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(
-    title = "Residuos vs Temperatura predicha",
-    x = "Temperatura predicha (°C)",
-    y = "Error (real - predicha)"
-  ) +
-  theme_minimal()
-
-
-# 4. Desempeño por franja horaria
+# 2. Desempeño por franja horaria
 ggplot(test_data, aes(x = T_mean_franja, y = T_pred_mean, color = franja)) +
-  geom_point(alpha = 0.5) +
-  
-  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "dashed") +
-  
-  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
-  
-  facet_wrap(~franja) +
-  
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "#00BFFF", linetype = "solid") +
+  facet_wrap(~ franja) +
   labs(
-    title = "Temperatura real vs predicha por franja horaria",
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)",
-    color = "Franja horaria"
+    x = "Real Indoor Temperature (°C)",
+    y = "Predicted Indoor Temperature (°C)",
+    title = "Model Performance by Time Slot",
+    color = "Time Slot"
   ) +
-  theme_minimal()
+  coord_fixed(ratio = 1) +
+  xlim(20, 32) + ylim(20, 32) +
+  theme_minimal(base_family = "Times") +
+  theme(
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12),
+    plot.title = element_text(size = 15, hjust = 0.5),
+    strip.text = element_text(size = 12),      # Texto de los nombres arriba de cada facet
+    legend.position = "bottom"                 # Leyenda debajo para mejor lectura
+  )
 
 
-# 5. Métricas de desempeño global
+
+# 3. Métricas de desempeño global
 R2   <- summary(modelo_Tint_mean)$r.squared
 RMSE <- rmse(test_data$T_mean_franja, test_data$T_pred_mean)
 MAE  <- mae(test_data$T_mean_franja, test_data$T_pred_mean)
@@ -302,76 +292,54 @@ cat("R² =", round(R2, 3), "\nRMSE =", round(RMSE, 2), "\nMAE =", round(MAE, 2))
 
 
 #Con la predicción en base a la temperatura interior ponderada==================================
+windowsFonts(Times = windowsFont("Times New Roman"))
 
 # 1. Predicciones vs valores reales (todas las franjas en conjunto)
 ggplot(test_data, aes(x = T_mean_franja, y = T_pred_pond)) +
-  geom_point(alpha = 0.5, color = "black") +
-  geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
-  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
+  geom_point(color = "black", alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "#00BFFF", linetype = "solid") +
   labs(
-    title = "Temperatura real vs predicha por el modelo",
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)"
+    x = "Real Indoor Temperature (°C)",
+    y = "Predicted Indoor Temperature (°C)",
+    title = "Model Performance – Indoor Temperature Prediction"
   ) +
-  theme_minimal()
+  coord_fixed(ratio = 1) +
+  xlim(20, 32) + ylim(20, 32) +
+  theme_minimal(base_family = "Times") +
+  theme(
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12),
+    plot.title = element_text(size = 15, hjust = 0.5)
+  )
 
-
-# 2. Predicciones vs valores reales (coloreadas por franjas)
+# 2. Desempeño por franja horaria
 ggplot(test_data, aes(x = T_mean_franja, y = T_pred_pond, color = franja)) +
   geom_point(alpha = 0.6) +
-  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "solid") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "#00BFFF", linetype = "solid") +
+  facet_wrap(~ franja) +
   labs(
-    title = "Temperatura real vs predicha por el modelo",
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)",
-    color = "Franja horaria"
+    x = "Real Indoor Temperature (°C)",
+    y = "Predicted Indoor Temperature (°C)",
+    title = "Model Performance by Time Slot",
+    color = "Time Slot"
   ) +
-  theme_minimal() +
+  coord_fixed(ratio = 1) +
+  xlim(20, 32) + ylim(20, 32) +
+  theme_minimal(base_family = "Times") +
   theme(
-    legend.position = "right",
-    plot.title = element_text(face = "bold", size = 14)
+    axis.title = element_text(size = 14),
+    axis.text  = element_text(size = 12),
+    plot.title = element_text(size = 15, hjust = 0.5),
+    strip.text = element_text(size = 12),
+    legend.position = "bottom"
   )
 
 
-# 3. Residuos del modelo
-test_data$resid <- test_data$T_mean_franja - test_data$T_pred_pond
-
-ggplot(test_data, aes(x = T_pred_pond, y = resid)) +
-  geom_point(alpha = 0.5, color = "darkorange") +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  labs(
-    title = "Residuos vs Temperatura predicha",
-    x = "Temperatura predicha (°C)",
-    y = "Error (real - predicha)"
-  ) +
-  theme_minimal()
-
-
-# 4. Desempeño por franja horaria
-ggplot(test_data, aes(x = T_mean_franja, y = T_pred_pond, color = franja)) +
-  geom_point(alpha = 0.5) +
-  geom_abline(slope = 1, intercept = 0, color = "black", linetype = "dashed") +
-  geom_smooth(method = "lm", se = FALSE, color = "red", linetype = "solid") +
-  facet_wrap(~franja) +
-  labs(
-    title = "Temperatura real vs predicha por franja horaria",
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)",
-    color = "Franja horaria"
-  ) +
-  theme_minimal()
-
-
-# 5. Métricas de desempeño global
+# 3. Métricas de desempeño global
 R2   <- summary(modelo_Tint_ponderada)$r.squared
 RMSE <- rmse(test_data$T_mean_franja, test_data$T_pred_pond)
 MAE  <- mae(test_data$T_mean_franja, test_data$T_pred_pond)
 
 cat("R² =", round(R2, 3), "\nRMSE =", round(RMSE, 2), "\nMAE =", round(MAE, 2))
-
-
-
-
-
-
-

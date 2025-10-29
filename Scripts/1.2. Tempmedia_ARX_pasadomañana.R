@@ -14,7 +14,6 @@ library(ggplot2)
 #==================================================================================
 #Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 #==================================================================================
-
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
   mutate(fecha = make_date(year, month, day)) %>%
   group_by(dwell_numb) %>%
@@ -41,7 +40,6 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
     Ext_T_9 = if_else(as.integer(fecha - lag(fecha, 9)) == 9, lag(Ext_T, 9), NA_real_)
   ) %>%
   ungroup()
-
 
 # Quitar filas con entradas NA
 Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
