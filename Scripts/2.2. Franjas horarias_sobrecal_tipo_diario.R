@@ -190,7 +190,11 @@ sobrecalentamiento_diario_final <- sobrecalentamiento_diario_final %>%
   left_join(alarma_tipo_diaria, by = c("dwell_numb", "date"))
   
 
-
+#Exportar base de datos
+install.packages("writexl")
+library(writexl)
+# Exportar dataset
+write_xlsx(sobrecalentamiento_diario_final, "sobrecalentamiento_diario_final.xlsx")
 
 
   
@@ -237,26 +241,28 @@ library(pROC)
 #1. crear lags=============================================================================================
 # Crear las variables retardadas por vivienda
 sobrecalentamiento_diario_final <- sobrecalentamiento_diario_final %>%
-  arrange(dwell_numb, date) %>%    # Orden correcto
+  arrange(dwell_numb, date) %>%      # ordenar por vivienda y fecha
   group_by(dwell_numb) %>%
   mutate(
+    
     across(
-      c(Ext_T, Int_T_ponderada),
-      list(
-        lag1 = ~lag(., 1),
-        lag2 = ~lag(., 2),
-        lag3 = ~lag(., 3),
-        lag4 = ~lag(., 4),
-        lag5 = ~lag(., 5),
-        lag6 = ~lag(., 6),
-        lag7 = ~lag(., 7),
-        lag8 = ~lag(., 8),
-        lag9 = ~lag(., 9)
+      c(Ext_T, Int_T_ponderada),      # variables a desfasar
+      .fns = list(
+        lag1 = ~ if_else(as.integer(date - lag(date, 1)) == 1, lag(.x, 1), NA_real_),
+        lag2 = ~ if_else(as.integer(date - lag(date, 2)) == 2, lag(.x, 2), NA_real_),
+        lag3 = ~ if_else(as.integer(date - lag(date, 3)) == 3, lag(.x, 3), NA_real_),
+        lag4 = ~ if_else(as.integer(date - lag(date, 4)) == 4, lag(.x, 4), NA_real_),
+        lag5 = ~ if_else(as.integer(date - lag(date, 5)) == 5, lag(.x, 5), NA_real_),
+        lag6 = ~ if_else(as.integer(date - lag(date, 6)) == 6, lag(.x, 6), NA_real_),
+        lag7 = ~ if_else(as.integer(date - lag(date, 7)) == 7, lag(.x, 7), NA_real_),
+        lag8 = ~ if_else(as.integer(date - lag(date, 8)) == 8, lag(.x, 8), NA_real_),
+        lag9 = ~ if_else(as.integer(date - lag(date, 9)) == 9, lag(.x, 9), NA_real_)
       ),
       .names = "{.col}_{.fn}"
     )
   ) %>%
   ungroup()
+
 #Eliminar los dias con NA
 sobrecalentamiento_diario_final <- sobrecalentamiento_diario_final %>%
   filter(!is.na(Ext_T_lag9), !is.na(Int_T_ponderada_lag9))
@@ -289,7 +295,7 @@ modelo_binario <- glm(alarma ~ Int_T + Int_RH + Ext_T + Ext_RAD + Int_T_ponderad
 
 summary(modelo_binario)
 
-# Predicción sobre test
+#Predecir la probabilidad de alarma y tranformarla en resultado binario
 test_data$pred_prob <- predict(modelo_binario, newdata = test_data, type = "response")
 test_data$alarma_pred <- ifelse(test_data$pred_prob > 0.5, 1, 0)  # umbral 0.5
 

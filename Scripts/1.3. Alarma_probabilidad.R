@@ -18,34 +18,34 @@ library(tidyr)
 #Quitar grados hora
 Vivtodas_diario_media <- Vivtodas_diario_media %>% select(-grados_hora)
 
-#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
+
+#Crear variables desfasadas
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
-  # Crear columna de fecha
-  mutate(fecha = make_date(year, month, day)) %>%
-  
-  group_by(dwell_numb) %>%        # agrupar por vivienda
-  arrange(dwell_numb, fecha) %>%  # ordenar por fecha
-  
+  mutate(fecha = make_date(year, month, day)) %>%      # Crear columna fecha
+  group_by(dwell_numb) %>%                             # Agrupar por vivienda
+  arrange(dwell_numb, fecha) %>%                       # Ordenar por fecha dentro de cada vivienda
   mutate(
-    Int_T_1 = lag(Int_T, 1),
-    Int_T_2 = lag(Int_T, 2),
-    Int_T_3 = lag(Int_T, 3),
-    Int_T_4 = lag(Int_T, 4),
-    Int_T_5 = lag(Int_T, 5),
-    Int_T_6 = lag(Int_T, 6),
-    Int_T_7 = lag(Int_T, 7),
-    Int_T_8 = lag(Int_T, 8),
-    Int_T_9 = lag(Int_T, 9),
+    # --- Lags temperatura interior ---
+    Int_T_1 = if_else(as.integer(fecha - lag(fecha, 1)) == 1, lag(Int_T, 1), NA_real_),
+    Int_T_2 = if_else(as.integer(fecha - lag(fecha, 2)) == 2, lag(Int_T, 2), NA_real_),
+    Int_T_3 = if_else(as.integer(fecha - lag(fecha, 3)) == 3, lag(Int_T, 3), NA_real_),
+    Int_T_4 = if_else(as.integer(fecha - lag(fecha, 4)) == 4, lag(Int_T, 4), NA_real_),
+    Int_T_5 = if_else(as.integer(fecha - lag(fecha, 5)) == 5, lag(Int_T, 5), NA_real_),
+    Int_T_6 = if_else(as.integer(fecha - lag(fecha, 6)) == 6, lag(Int_T, 6), NA_real_),
+    Int_T_7 = if_else(as.integer(fecha - lag(fecha, 7)) == 7, lag(Int_T, 7), NA_real_),
+    Int_T_8 = if_else(as.integer(fecha - lag(fecha, 8)) == 8, lag(Int_T, 8), NA_real_),
+    Int_T_9 = if_else(as.integer(fecha - lag(fecha, 9)) == 9, lag(Int_T, 9), NA_real_),
     
-    Ext_T_1 = lag(Ext_T, 1),
-    Ext_T_2 = lag(Ext_T, 2),
-    Ext_T_3 = lag(Ext_T, 3),
-    Ext_T_4 = lag(Ext_T, 4),
-    Ext_T_5 = lag(Ext_T, 5),
-    Ext_T_6 = lag(Ext_T, 6),
-    Ext_T_7 = lag(Ext_T, 7),
-    Ext_T_8 = lag(Ext_T, 8),
-    Ext_T_9 = lag(Ext_T, 9)
+    # --- Lags temperatura exterior ---
+    Ext_T_1 = if_else(as.integer(fecha - lag(fecha, 1)) == 1, lag(Ext_T, 1), NA_real_),
+    Ext_T_2 = if_else(as.integer(fecha - lag(fecha, 2)) == 2, lag(Ext_T, 2), NA_real_),
+    Ext_T_3 = if_else(as.integer(fecha - lag(fecha, 3)) == 3, lag(Ext_T, 3), NA_real_),
+    Ext_T_4 = if_else(as.integer(fecha - lag(fecha, 4)) == 4, lag(Ext_T, 4), NA_real_),
+    Ext_T_5 = if_else(as.integer(fecha - lag(fecha, 5)) == 5, lag(Ext_T, 5), NA_real_),
+    Ext_T_6 = if_else(as.integer(fecha - lag(fecha, 6)) == 6, lag(Ext_T, 6), NA_real_),
+    Ext_T_7 = if_else(as.integer(fecha - lag(fecha, 7)) == 7, lag(Ext_T, 7), NA_real_),
+    Ext_T_8 = if_else(as.integer(fecha - lag(fecha, 8)) == 8, lag(Ext_T, 8), NA_real_),
+    Ext_T_9 = if_else(as.integer(fecha - lag(fecha, 9)) == 9, lag(Ext_T, 9), NA_real_)
   ) %>%
   ungroup()
 
