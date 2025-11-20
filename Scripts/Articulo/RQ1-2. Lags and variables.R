@@ -5,6 +5,9 @@ library(Metrics)
 library(lubridate)
 library(purrr)
 
+#===========================================
+#CREAR DATASET CON LAGS
+#===========================================
 # Dataset
 df <- Vivtodas_diario_media
 
@@ -14,16 +17,6 @@ df <- df %>% dplyr::select(-Int_RH, -Ext_RH)
 # Crear columna fecha
 df <- df %>%
   mutate(fecha = make_date(year, month, day))
-
-
-
-
-
-
-
-
-
-#DATASET CON LAGS=============================================================================================
 
 # Máximo número de días previos a considerar
 max_lags <- 30
@@ -62,14 +55,9 @@ names(df_lags)
 
 
 
-
-
-
-
-
-
-#CÁLCULO DE LOS LAGS ÓPTIMOS=============================================================================================
-
+#===========================================
+#CÁLCULO LAGS OPTIMOS
+#===========================================
 # Variables rezagadas de entrada
 lag_vars <- names(df_lags)[grepl("_\\d+$", names(df_lags))]  # todas las columnas con "_1", "_2", ...
 
@@ -110,7 +98,7 @@ ggplot(rmse_results, aes(x = max_lag, y = RMSE)) +
        title = "Optimización de número de lags para modelo ARX") +
   theme_minimal()
 
-#RESULTADO: 9 dias previos
+#RESULTADO: 9 dias previos es lo óptimo
 
 
 
@@ -118,10 +106,11 @@ ggplot(rmse_results, aes(x = max_lag, y = RMSE)) +
 
 
 
+#===========================================
+#MODELOS ARX 
+#===========================================
 
-
-#Modelo ARX usando los lags óptimos de 9 días para las tres variables (Int_T, Ext_T, Ext_RAD) para predecir la temperatura interior Int_T
-
+#1. Modelo ARX usando los lags óptimos de 9 días para las tres variables (Int_T, Ext_T, Ext_RAD) para predecir la temperatura interior Int_T
 # Número de lags óptimos
 optimal_lag <- 9
 
@@ -155,15 +144,12 @@ predictions_test <- predict(model_arx, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE del modelo ARX sobre el test set:", round(rmse_test, 4)))
+print(paste("RMSE del modelo ARX sobre el test set:", round(rmse_test, 4))) #RESULTADO:0.6519 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE del modelo ARX sobre el training set:", round(rmse_train, 4)))
-
-#RESULTADO--> "RMSE del modelo ARX sobre el test set: 0.6519"
-
+print(paste("RMSE del modelo ARX sobre el training set:", round(rmse_train, 4))) #RESULTADO:0.6397 (train)
 
 # Función para calcular R²
 r2 <- function(y_true, y_pred) {
@@ -177,19 +163,15 @@ pred_test_full  <- predict(model_arx, df_test)
 r2_train_full <- r2(df_train$Int_T, pred_train_full)
 r2_test_full  <- r2(df_test$Int_T, pred_test_full)
 
-print(paste("R² modelo ARX completo - train:", round(r2_train_full, 4)))
-print(paste("R² modelo ARX completo - test: ", round(r2_test_full, 4)))
+print(paste("R² modelo ARX completo - train:", round(r2_train_full, 4))) #RESULTADO: 0.8759 (train)
+print(paste("R² modelo ARX completo - test: ", round(r2_test_full, 4))) #RESULTADO: 0.8549 (test)
 
 
 
 
 
 
-
-
-
-
-#Modelo usando las variables que son significativas ===============================
+#2. Modelo usando las variables que son significativas. Ext_T del dia a predecir; Ext_T (lag de 2 dias); Int_T (lag de 2 dias)
 # Lags a usar (solo 1 y 2) de Int_T y Ext_T
 lag_vars <- names(df_lags)[grepl("_(1|2)$", names(df_lags))]
 lag_vars <- lag_vars[grepl("Int_T|Ext_T", lag_vars)]
@@ -220,12 +202,12 @@ predictions_test <- predict(model_arx_simple, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE del modelo ARX simplificado sobre el test set:", round(rmse_test, 4)))
+print(paste("RMSE del modelo ARX simplificado sobre el test set:", round(rmse_test, 4))) #RESULTADO: 0.6389 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx_simple, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE del modelo ARX simplificado sobre el training set:", round(rmse_train, 4)))
+print(paste("RMSE del modelo ARX simplificado sobre el training set:", round(rmse_train, 4))) #RESULTADO: 0.6517 (train)
 
 # R2
 pred_train_simple <- predict(model_arx_simple, df_train)
@@ -234,19 +216,14 @@ pred_test_simple  <- predict(model_arx_simple, df_test)
 r2_train_simple <- r2(df_train$Int_T, pred_train_simple)
 r2_test_simple  <- r2(df_test$Int_T, pred_test_simple)
 
-print(paste("R² modelo ARX simplificado - train:", round(r2_train_simple, 4)))
-print(paste("R² modelo ARX simplificado - test: ", round(r2_test_simple, 4)))
+print(paste("R² modelo ARX simplificado - train:", round(r2_train_simple, 4)))#RESULTADO: 0.8712 (train)
+print(paste("R² modelo ARX simplificado - test: ", round(r2_test_simple, 4))) #RESULTADO: 0.8606 (test)
 
 
 
 
-
-
-
-
-
-#Modelo sin variables interiores =============================================================================
-# --- Lags a usar (solo 1 y 2) de Ext_T ---
+#3.1. Modelo sin variables interiores y solo dos dias antes
+#Lags a usar (solo 1 y 2) de Ext_T
 lag_vars <- names(df_lags)[grepl("_(1|2)$", names(df_lags))]
 lag_vars <- lag_vars[grepl("Ext_T", lag_vars)]  # Solo lags de temperatura exterior
 
@@ -276,12 +253,12 @@ predictions_test <- predict(model_arx_ext, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE modelo ARX solo Ext_T - test set:", round(rmse_test, 4)))
+print(paste("RMSE modelo ARX solo Ext_T - test set:", round(rmse_test, 4)))#RESULTADO: 1.2402 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx_ext, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE modelo ARX solo Ext_T - train set:", round(rmse_train, 4)))
+print(paste("RMSE modelo ARX solo Ext_T - train set:", round(rmse_train, 4))) #RESULTADO: 1.2386 (train)
 
 # R²
 r2 <- function(y_true, y_pred) {
@@ -291,14 +268,15 @@ r2 <- function(y_true, y_pred) {
 r2_train <- r2(df_train$Int_T, predictions_train)
 r2_test  <- r2(df_test$Int_T, predictions_test)
 
-print(paste("R² modelo ARX solo Ext_T - train:", round(r2_train, 4)))
-print(paste("R² modelo ARX solo Ext_T - test: ", round(r2_test, 4)))
+print(paste("R² modelo ARX solo Ext_T - train:", round(r2_train, 4))) #RESULTADO: 0.5349 (train)
+print(paste("R² modelo ARX solo Ext_T - test: ", round(r2_test, 4))) #RESULTADO: 0.4748 (test)
 
 
 
-#===========
 
-# --- Lags a usar (1 a 9) de Ext_T ---
+
+#3.2. Modelo sin variables interiores y 9 dias antes
+#Lags a usar (1 a 9) de Ext_T
 lag_vars <- names(df_lags)[grepl("_(1|2|3|4|5|6|7|8|9)$", names(df_lags))]
 lag_vars <- lag_vars[grepl("Ext_T", lag_vars)]  # Solo lags de temperatura exterior
 
@@ -328,12 +306,12 @@ predictions_test <- predict(model_arx_ext9, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE modelo ARX solo Ext_T (9 lags) - test set:", round(rmse_test, 4)))
+print(paste("RMSE modelo ARX solo Ext_T (9 lags) - test set:", round(rmse_test, 4))) #RESULTADO: 1.1786 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx_ext9, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE modelo ARX solo Ext_T (9 lags) - train set:", round(rmse_train, 4)))
+print(paste("RMSE modelo ARX solo Ext_T (9 lags) - train set:", round(rmse_train, 4))) #RESULTADO: 1.1861 (train)
 
 # R²
 r2 <- function(y_true, y_pred) {
@@ -343,11 +321,5 @@ r2 <- function(y_true, y_pred) {
 r2_train <- r2(df_train$Int_T, predictions_train)
 r2_test  <- r2(df_test$Int_T, predictions_test)
 
-print(paste("R² modelo ARX solo Ext_T (9 lags) - train:", round(r2_train, 4)))
-print(paste("R² modelo ARX solo Ext_T (9 lags) - test: ", round(r2_test, 4)))
-
-
-
-
-
-
+print(paste("R² modelo ARX solo Ext_T (9 lags) - train:", round(r2_train, 4)))#RESULTADO: 0.5735 (train)
+print(paste("R² modelo ARX solo Ext_T (9 lags) - test: ", round(r2_test, 4)))#RESULTADO: 0.5257 (test)
