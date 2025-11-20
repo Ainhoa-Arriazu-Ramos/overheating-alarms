@@ -98,22 +98,23 @@ data.frame(
 
 
 
+
+
+
+
 #=========================================================
 #PREDICCIÓN POR FRANJAS (2 dias previos-12 LAGS PREVIOS)
 #=========================================================
 
-# Importar base de datos: Vivtodas_verano_horario
-
-#Cargar librerías
 library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(tidyr)
 library(Metrics)
 
-#Crear variable fecha
+# Crear variable fecha
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
-  mutate(date = make_date(year, month, day))  # Crear variable de tipo date
+  mutate(date = make_date(year, month, day))
 
 # DEFINICIÓN DE FRANJAS HORARIAS
 franjas <- tibble(
@@ -138,64 +139,81 @@ franjas <- tibble(
 Vivtodas_verano_horario <- Vivtodas_verano_horario %>%
   left_join(franjas, by = "hour")
 
-
-# VARIABLES EXTERIORES DIARIAS
-Vivtodas_diario <- Vivtodas_verano_horario %>%
-  group_by(dwell_numb, date) %>%
+# TEMPERATURA MEDIA POR FRANJA
+Vivtodas_franja <- Vivtodas_verano_horario %>%
+  group_by(dwell_numb, date, franja) %>%
   summarise(
-    Ext_T_mean  = mean(Ext_T, na.rm = TRUE),
-    Ext_RAD_mean = mean(Ext_RAD, na.rm = TRUE),
+    Int_T_franja = mean(Int_T, na.rm = TRUE),
     .groups = "drop"
   )
 
-# CREAR LAGS HORARIOS DE TEMPERATURA INTERIOR
-Vivtodas_franja_lags <- Vivtodas_verano_horario %>%
-  arrange(dwell_numb, date, hour) %>%
-  group_by(dwell_numb) %>%
+# 12 LAGS AGRUPADOS POR VIVIENDA Y FRANJA
+Vivtodas_franja_lags <- Vivtodas_franja %>%
+  arrange(dwell_numb, franja, date) %>%
+  group_by(dwell_numb, franja) %>%
   mutate(
-    Int_T_lag_1 = lag(Int_T, 1),
-    Int_T_lag_2 = lag(Int_T, 2),
-    Int_T_lag_3 = lag(Int_T, 3),
-    Int_T_lag_4 = lag(Int_T, 4),
-    Int_T_lag_5 = lag(Int_T, 5),
-    Int_T_lag_6 = lag(Int_T, 6),
-    Int_T_lag_7 = lag(Int_T, 7),
-    Int_T_lag_8 = lag(Int_T, 8),
-    Int_T_lag_9 = lag(Int_T, 9)
+    Int_T_franja_lag1  = lag(Int_T_franja, 1),
+    Int_T_franja_lag2  = lag(Int_T_franja, 2),
+    Int_T_franja_lag3  = lag(Int_T_franja, 3),
+    Int_T_franja_lag4  = lag(Int_T_franja, 4),
+    Int_T_franja_lag5  = lag(Int_T_franja, 5),
+    Int_T_franja_lag6  = lag(Int_T_franja, 6),
+    Int_T_franja_lag7  = lag(Int_T_franja, 7),
+    Int_T_franja_lag8  = lag(Int_T_franja, 8),
+    Int_T_franja_lag9  = lag(Int_T_franja, 9),
+    Int_T_franja_lag10 = lag(Int_T_franja, 10),
+    Int_T_franja_lag11 = lag(Int_T_franja, 11),
+    Int_T_franja_lag12 = lag(Int_T_franja, 12)
   ) %>%
   ungroup()
 
-# UNIÓN DE TABLAS
-base_final <- Vivtodas_franja_lags %>%
-  left_join(Vivtodas_diario, by = c("dwell_numb", "date")) %>%
-  drop_na()   # eliminar filas con NA en lags
+# VARIABLES EXTERIORES
+Vivtodas_diario <- Vivtodas_verano_horario %>%
+  group_by(dwell_numb, date) %>%
+  summarise(
+    Ext_T_mean = mean(Ext_T, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(dwell_numb, date) %>%
+  group_by(dwell_numb) %>%
+  mutate(
+    Ext_T_mean_lag1 = lag(Ext_T_mean, 1),
+    Ext_T_mean_lag2 = lag(Ext_T_mean, 2)
+  ) %>%
+  ungroup()
 
-# DIVISIÓN TRAIN / TEST POR VIVIENDA
+# UNION FINAL
+Vivtodas_final <- Vivtodas_franja_lags %>%
+  left_join(Vivtodas_diario, by = c("dwell_numb", "date"))
+
+
+#MODELO ARX===================================================
+# TRAIN / TEST
 train_viviendas <- c(1,3,5,6,7,9,10,12,13)
 test_viviendas  <- c(2,4,8,11)
 
-train_data <- base_final %>% filter(dwell_numb %in% train_viviendas)
-test_data  <- base_final %>% filter(dwell_numb %in% test_viviendas)
+train_data <- Vivtodas_final %>% filter(dwell_numb %in% train_viviendas)
+test_data  <- Vivtodas_final %>% filter(dwell_numb %in% test_viviendas)
 
-
-# MODELO ARX POR FRANJA HORARIA =========================================================
+# MODELO ARX
 modelo_franja <- lm(
-  Int_T ~ 
-    Int_T_lag_1 + Int_T_lag_2 + Int_T_lag_3 + Int_T_lag_4 + Int_T_lag_5 +
-    Int_T_lag_6 + Int_T_lag_7 + Int_T_lag_8 + Int_T_lag_9 +
-    Ext_T_mean, ,
+  Int_T_franja ~ 
+    Int_T_franja_lag1 + Int_T_franja_lag2 + Int_T_franja_lag3 + Int_T_franja_lag4 +
+    Int_T_franja_lag5 + Int_T_franja_lag6 + Int_T_franja_lag7 + Int_T_franja_lag8 +
+    Int_T_franja_lag9 + Int_T_franja_lag10 + Int_T_franja_lag11 + Int_T_franja_lag12 +
+    Ext_T_mean + Ext_T_mean_lag1 + Ext_T_mean_lag2,
   data = train_data
 )
 
 summary(modelo_franja)
 
-
-# PREDICCIÓN SOBRE TEST
+# PREDICCIÓN
 test_data <- test_data %>%
-  mutate(Int_T_pred = predict(modelo_franja, newdata = test_data))
+  mutate(Int_T_pred = predict(modelo_franja, newdata = test_data)) %>%
+  drop_na(Int_T_pred)
 
-# GRÁFICO DE AJUSTE
-ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
+# GRAFICO
+ggplot(test_data, aes(x = Int_T_franja, y = Int_T_pred)) +
   geom_point(alpha = 0.5, color = "black") +
   geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
   geom_smooth(method = "lm", se = FALSE, color = "#00BFFF") +
@@ -205,18 +223,15 @@ ggplot(test_data, aes(x = Int_T, y = Int_T_pred)) +
     title = "Predicción de Temperatura Interior por Franja"
   ) +
   coord_fixed(ratio = 1) +
-  theme_minimal(base_family = "Times") +
-  theme(
-    axis.title = element_text(size = 14),
-    axis.text  = element_text(size = 12),
-    plot.title = element_text(size = 15, hjust = 0.5)
-  )
+  theme_minimal()
 
-# Métricas de desempeño global
-R2 <- summary(modelo_franja)$r.squared
-RMSE <- rmse(test_data$Int_T, test_data$Int_T_pred)
-MAE  <- mae(test_data$Int_T, test_data$Int_T_pred)
+# METRICAS
+R2  <- summary(modelo_franja)$r.squared
+RMSE <- rmse(test_data$Int_T_franja, test_data$Int_T_pred)
+MAE  <- mae(test_data$Int_T_franja, test_data$Int_T_pred)
 
-cat("R² (train) =", round(R2, 3), 
-    "\nRMSE (test) =", round(RMSE, 2), 
-    "\nMAE (test) =", round(MAE, 2))
+cat(
+  "R² (train) =", round(R2, 3),
+  "\nRMSE (test) =", round(RMSE, 2),
+  "\nMAE (test) =", round(MAE, 2)
+)

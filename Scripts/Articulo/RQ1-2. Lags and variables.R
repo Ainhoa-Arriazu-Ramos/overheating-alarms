@@ -134,7 +134,7 @@ df_train <- df_lags %>% filter(dwell_numb %in% train_dwellings)
 df_test  <- df_lags %>% filter(dwell_numb %in% test_dwellings)
 
 # Ajustar modelo ARX robusto con training set
-model_arx <- rlm(formula_arx, data = df_train)
+model_arx <- lm(formula_arx, data = df_train)
 
 # Resumen del modelo
 summary(model_arx)
@@ -144,28 +144,12 @@ predictions_test <- predict(model_arx, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE del modelo ARX sobre el test set:", round(rmse_test, 4))) #RESULTADO:0.6519 (test)
+print(paste("RMSE del modelo ARX sobre el test set:", round(rmse_test, 4))) #RESULTADO:0.6308 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE del modelo ARX sobre el training set:", round(rmse_train, 4))) #RESULTADO:0.6397 (train)
-
-# Función para calcular R²
-r2 <- function(y_true, y_pred) {
-  1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
-}
-
-# R2
-pred_train_full <- predict(model_arx, df_train)
-pred_test_full  <- predict(model_arx, df_test)
-
-r2_train_full <- r2(df_train$Int_T, pred_train_full)
-r2_test_full  <- r2(df_test$Int_T, pred_test_full)
-
-print(paste("R² modelo ARX completo - train:", round(r2_train_full, 4))) #RESULTADO: 0.8759 (train)
-print(paste("R² modelo ARX completo - test: ", round(r2_test_full, 4))) #RESULTADO: 0.8549 (test)
-
+print(paste("RMSE del modelo ARX sobre el training set:", round(rmse_train, 4))) #RESULTADO:0.6282 (train)
 
 
 
@@ -192,7 +176,7 @@ df_train <- df_lags %>% filter(dwell_numb %in% train_dwellings)
 df_test  <- df_lags %>% filter(dwell_numb %in% test_dwellings)
 
 # Ajustar modelo ARX robusto con training set
-model_arx_simple <- rlm(formula_arx_simple, data = df_train)
+model_arx_simple <- lm(formula_arx_simple, data = df_train)
 
 # Resumen del modelo
 summary(model_arx_simple)
@@ -202,22 +186,14 @@ predictions_test <- predict(model_arx_simple, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE del modelo ARX simplificado sobre el test set:", round(rmse_test, 4))) #RESULTADO: 0.6389 (test)
+print(paste("RMSE del modelo ARX simplificado sobre el test set:", round(rmse_test, 4))) #RESULTADO: 0.6224 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx_simple, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE del modelo ARX simplificado sobre el training set:", round(rmse_train, 4))) #RESULTADO: 0.6517 (train)
+print(paste("RMSE del modelo ARX simplificado sobre el training set:", round(rmse_train, 4))) #RESULTADO: 0.6435 (train)
 
-# R2
-pred_train_simple <- predict(model_arx_simple, df_train)
-pred_test_simple  <- predict(model_arx_simple, df_test)
 
-r2_train_simple <- r2(df_train$Int_T, pred_train_simple)
-r2_test_simple  <- r2(df_test$Int_T, pred_test_simple)
-
-print(paste("R² modelo ARX simplificado - train:", round(r2_train_simple, 4)))#RESULTADO: 0.8712 (train)
-print(paste("R² modelo ARX simplificado - test: ", round(r2_test_simple, 4))) #RESULTADO: 0.8606 (test)
 
 
 
@@ -243,7 +219,7 @@ df_train <- df_lags %>% filter(dwell_numb %in% train_dwellings)
 df_test  <- df_lags %>% filter(dwell_numb %in% test_dwellings)
 
 # Ajustar modelo ARX robusto con training set
-model_arx_ext <- rlm(formula_arx_ext, data = df_train)
+model_arx_ext <- lm(formula_arx_ext, data = df_train)
 
 # Resumen del modelo
 summary(model_arx_ext)
@@ -253,23 +229,14 @@ predictions_test <- predict(model_arx_ext, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE modelo ARX solo Ext_T - test set:", round(rmse_test, 4)))#RESULTADO: 1.2402 (test)
+print(paste("RMSE modelo ARX solo Ext_T - test set:", round(rmse_test, 4)))#RESULTADO: 1.2299 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx_ext, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE modelo ARX solo Ext_T - train set:", round(rmse_train, 4))) #RESULTADO: 1.2386 (train)
+print(paste("RMSE modelo ARX solo Ext_T - train set:", round(rmse_train, 4))) #RESULTADO: 1.2381 (train)
 
-# R²
-r2 <- function(y_true, y_pred) {
-  1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
-}
 
-r2_train <- r2(df_train$Int_T, predictions_train)
-r2_test  <- r2(df_test$Int_T, predictions_test)
-
-print(paste("R² modelo ARX solo Ext_T - train:", round(r2_train, 4))) #RESULTADO: 0.5349 (train)
-print(paste("R² modelo ARX solo Ext_T - test: ", round(r2_test, 4))) #RESULTADO: 0.4748 (test)
 
 
 
@@ -296,7 +263,7 @@ df_train <- df_lags %>% filter(dwell_numb %in% train_dwellings)
 df_test  <- df_lags %>% filter(dwell_numb %in% test_dwellings)
 
 # Ajustar modelo ARX robusto con training set
-model_arx_ext9 <- rlm(formula_arx_ext9, data = df_train)
+model_arx_ext9 <- lm(formula_arx_ext9, data = df_train)
 
 # Resumen del modelo
 summary(model_arx_ext9)
@@ -306,20 +273,9 @@ predictions_test <- predict(model_arx_ext9, df_test)
 
 # Calcular RMSE sobre test set
 rmse_test <- rmse(df_test$Int_T, predictions_test)
-print(paste("RMSE modelo ARX solo Ext_T (9 lags) - test set:", round(rmse_test, 4))) #RESULTADO: 1.1786 (test)
+print(paste("RMSE modelo ARX solo Ext_T (9 lags) - test set:", round(rmse_test, 4))) #RESULTADO: 1.1655 (test)
 
 # Predicciones sobre training set para comparar
 predictions_train <- predict(model_arx_ext9, df_train)
 rmse_train <- rmse(df_train$Int_T, predictions_train)
-print(paste("RMSE modelo ARX solo Ext_T (9 lags) - train set:", round(rmse_train, 4))) #RESULTADO: 1.1861 (train)
-
-# R²
-r2 <- function(y_true, y_pred) {
-  1 - sum((y_true - y_pred)^2) / sum((y_true - mean(y_true))^2)
-}
-
-r2_train <- r2(df_train$Int_T, predictions_train)
-r2_test  <- r2(df_test$Int_T, predictions_test)
-
-print(paste("R² modelo ARX solo Ext_T (9 lags) - train:", round(r2_train, 4)))#RESULTADO: 0.5735 (train)
-print(paste("R² modelo ARX solo Ext_T (9 lags) - test: ", round(r2_test, 4)))#RESULTADO: 0.5257 (test)
+print(paste("RMSE modelo ARX solo Ext_T (9 lags) - train set:", round(rmse_train, 4))) #RESULTADO: 1.1844 (train)
