@@ -212,18 +212,25 @@ test_data <- test_data %>%
   mutate(Int_T_pred = predict(modelo_franja, newdata = test_data)) %>%
   drop_na(Int_T_pred)
 
-# GRAFICO
+# Gráfico de dispersión para variable Int_T_franja
+windowsFonts(Times = windowsFont("Times New Roman"))
+
 ggplot(test_data, aes(x = Int_T_franja, y = Int_T_pred)) +
-  geom_point(alpha = 0.5, color = "black") +
-  geom_abline(slope = 1, intercept = 0, color = "blue", linetype = "dashed") +
-  geom_smooth(method = "lm", se = FALSE, color = "#00BFFF") +
+  geom_point(color = "black") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "#00BFFF", linetype = "solid") +
   labs(
-    x = "Temperatura real (°C)",
-    y = "Temperatura predicha (°C)",
-    title = "Predicción de Temperatura Interior por Franja"
+    x = "Real Mean Indoor Temperature (°C)",
+    y = "Predicted Mean Indoor Temperature (°C)"
   ) +
+  xlim(20, 32) +
+  ylim(20, 32) +
   coord_fixed(ratio = 1) +
-  theme_minimal()
+  theme_minimal(base_family = "Times") +
+  theme(
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
 
 # METRICAS
 R2  <- summary(modelo_franja)$r.squared
