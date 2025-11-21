@@ -14,41 +14,21 @@ library(tidyr)
 
 #==========================================================================
 
-
-#Quitar grados hora
-Vivtodas_diario_media <- Vivtodas_diario_media %>% select(-grados_hora)
-
-
-#Crear variables desfasadas
+#Variables desfasadas; dentro de la misma vivienda y desfasando respecto a la fecha
 Vivtodas_diario_media <- Vivtodas_diario_media %>%
-  mutate(fecha = make_date(year, month, day)) %>%      # Crear columna fecha
-  group_by(dwell_numb) %>%                             # Agrupar por vivienda
-  arrange(dwell_numb, fecha) %>%                       # Ordenar por fecha dentro de cada vivienda
+  mutate(fecha = make_date(year, month, day)) %>%
+  group_by(dwell_numb) %>%
+  arrange(fecha) %>%
   mutate(
-    # --- Lags temperatura interior ---
     Int_T_1 = if_else(as.integer(fecha - lag(fecha, 1)) == 1, lag(Int_T, 1), NA_real_),
     Int_T_2 = if_else(as.integer(fecha - lag(fecha, 2)) == 2, lag(Int_T, 2), NA_real_),
-    Int_T_3 = if_else(as.integer(fecha - lag(fecha, 3)) == 3, lag(Int_T, 3), NA_real_),
-    Int_T_4 = if_else(as.integer(fecha - lag(fecha, 4)) == 4, lag(Int_T, 4), NA_real_),
-    Int_T_5 = if_else(as.integer(fecha - lag(fecha, 5)) == 5, lag(Int_T, 5), NA_real_),
-    Int_T_6 = if_else(as.integer(fecha - lag(fecha, 6)) == 6, lag(Int_T, 6), NA_real_),
-    Int_T_7 = if_else(as.integer(fecha - lag(fecha, 7)) == 7, lag(Int_T, 7), NA_real_),
-    Int_T_8 = if_else(as.integer(fecha - lag(fecha, 8)) == 8, lag(Int_T, 8), NA_real_),
-    Int_T_9 = if_else(as.integer(fecha - lag(fecha, 9)) == 9, lag(Int_T, 9), NA_real_),
     
-    # --- Lags temperatura exterior ---
     Ext_T_1 = if_else(as.integer(fecha - lag(fecha, 1)) == 1, lag(Ext_T, 1), NA_real_),
     Ext_T_2 = if_else(as.integer(fecha - lag(fecha, 2)) == 2, lag(Ext_T, 2), NA_real_),
     Ext_T_3 = if_else(as.integer(fecha - lag(fecha, 3)) == 3, lag(Ext_T, 3), NA_real_),
-    Ext_T_4 = if_else(as.integer(fecha - lag(fecha, 4)) == 4, lag(Ext_T, 4), NA_real_),
-    Ext_T_5 = if_else(as.integer(fecha - lag(fecha, 5)) == 5, lag(Ext_T, 5), NA_real_),
-    Ext_T_6 = if_else(as.integer(fecha - lag(fecha, 6)) == 6, lag(Ext_T, 6), NA_real_),
-    Ext_T_7 = if_else(as.integer(fecha - lag(fecha, 7)) == 7, lag(Ext_T, 7), NA_real_),
-    Ext_T_8 = if_else(as.integer(fecha - lag(fecha, 8)) == 8, lag(Ext_T, 8), NA_real_),
-    Ext_T_9 = if_else(as.integer(fecha - lag(fecha, 9)) == 9, lag(Ext_T, 9), NA_real_)
+    
   ) %>%
   ungroup()
-
 
 # Quitar filas con entradas NA
 Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
@@ -75,8 +55,6 @@ Vivtodas_diario_media <- Vivtodas_diario_media %>%
 
 
 
-
-
 #====================================================================================================
 #MÉTODO 2: PROBABILIDAD DE ALARMA
 #====================================================================================================
@@ -95,9 +73,9 @@ test_data <- Vivtodas_diario_media %>%
   filter(dwell_numb %in% test_viviendas)
 
 #Modelo de ARX con los datos de entrenamiento
-modelo_arx <- lm(Int_T ~ Ext_T + Ext_RAD + 
-                   Ext_T_1 + Ext_T_2 + Ext_T_3 + Ext_T_4 + Ext_T_5 + Ext_T_6 + Ext_T_7 + Ext_T_8 + Ext_T_9
-                 + Int_T_1 + Int_T_2 + Int_T_3 + Int_T_4 + Int_T_5 + Int_T_6 + Int_T_7 + Int_T_8 + Int_T_9, 
+modelo_arx <- lm(Int_T ~ Ext_T + 
+                   Ext_T_1 + Ext_T_2 
+                 + Int_T_1 + Int_T_2, 
                  data = train_data)
 
 summary(modelo_arx)
@@ -112,7 +90,7 @@ test_data <- test_data %>%
     )
 
 #Añadir tambien la columna Int_T_pred en el train data
-train_data$Int_T_pred <- predict(modelo_rlm, newdata = train_data)
+train_data$Int_T_pred <- predict(modelo_arx, newdata = train_data)
 
 
 # MODELO LOGÍSTICO: predecir alarma en función de Int_T_pred y limiteadap======================
@@ -183,6 +161,25 @@ ggplot(test_data, aes(x = Int_T_pred, y = prob_alarma_pct)) +
     plot.title = element_text(face = "bold", size = 16),
     plot.subtitle = element_text(size = 13)
   )
+
+#============================================================
+# Valor de temperatura más cercano a la probabilidad de 40.2%
+#============================================================
+
+# Valor del percentil 10
+umbral_pct10 <- 41.4
+
+# Buscar la fila más cercana a ese valor de probabilidad
+fila_cercana <- test_data %>%
+  mutate(dif = abs(prob_alarma_pct - umbral_pct10)) %>%
+  arrange(dif) %>%
+  slice(1) %>%
+  select(Int_T_pred, prob_alarma_pct, limiteadap, alarma_real)
+
+fila_cercana
+
+
+
 
 
 #============================================================
