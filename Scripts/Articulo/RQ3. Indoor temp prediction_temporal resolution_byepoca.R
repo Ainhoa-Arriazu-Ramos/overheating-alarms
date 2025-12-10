@@ -35,6 +35,8 @@ Vivtodas_diario_media <- na.omit(Vivtodas_diario_media)
 
 
 
+
+
 #División en dos subdatasets=================================================================
 Viv_antescte <- subset(Vivtodas_diario_media, dwell_numb %in% c(1,2,3,4,5,6)) #Antes del CTE
 Viv_despuesscte <- subset(Vivtodas_diario_media, dwell_numb %in% c(7,8,9,10,11,12)) #Después del CTE
@@ -104,7 +106,7 @@ calcular_errores <- function(real, pred) {
 errores <- calcular_errores(test_data_antescte$Int_T, test_data_antescte$Int_T_pred)
 
 data.frame(
-  Modelo = c("Todas las viviendas"),
+  Modelo = c("Viviendas antes del CTE"),
   MSE = c(errores$MSE),
   RMSE = c(errores$RMSE),
   MAE = c(errores$MAE)
@@ -170,7 +172,7 @@ calcular_errores <- function(real, pred) {
 errores <- calcular_errores(test_viviendas_despuescte$Int_T, test_viviendas_despuescte$Int_T_pred)
 
 data.frame(
-  Modelo = c("Todas las viviendas"),
+  Modelo = c("Viviendas después del CTE"),
   MSE = c(errores$MSE),
   RMSE = c(errores$RMSE),
   MAE = c(errores$MAE)
