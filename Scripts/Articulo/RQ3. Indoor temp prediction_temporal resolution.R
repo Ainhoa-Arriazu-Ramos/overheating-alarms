@@ -106,6 +106,8 @@ data.frame(
 #PREDICCIÓN POR FRANJAS (2 dias previos-12 LAGS PREVIOS)
 #=========================================================
 
+#Importar la base de datos: Vivtodas_verano_horario.xlsx
+
 library(dplyr)
 library(lubridate)
 library(ggplot2)
